@@ -209,8 +209,10 @@ function renderProducts() {
       ${productImageBlock(p)}
       <div class="product-card__body">
         <h3 class="product-card__title">${escapeHtml(p.title)}</h3>
-        <div class="product-card__price">${p.price} ₽</div>
-        <button type="button" class="btn btn--primary btn--sm btn-add" data-id="${p.id}">+</button>
+        <div class="product-card__row">
+          <div class="product-card__price">${p.price} ₽</div>
+          <button type="button" class="btn btn--primary btn--sm btn-add" data-id="${p.id}">+</button>
+        </div>
       </div>
     `;
     grid.appendChild(card);
