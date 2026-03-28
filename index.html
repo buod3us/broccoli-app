@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Бро Кколи — магазин</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="logo">
+        <span class="logo__mark">🥦</span>
+        <div class="logo__text">
+          <span class="logo__name">Бро Кколи</span>
+          <span class="logo__tag">сублимированная халяль еда</span>
+        </div>
+      </div>
+    </header>
+
+    <section id="page-home" class="page page--active">
+      <div class="slider" id="banner-slider">
+        <div class="slider__track" id="slider-track"></div>
+        <div class="slider__dots" id="slider-dots"></div>
+      </div>
+      <h2 class="section-title">Каталог</h2>
+      <div class="products" id="products-grid"></div>
+    </section>
+
+    <section id="page-cart" class="page">
+      <h2 class="section-title">Корзина</h2>
+      <div id="cart-list" class="cart-list"></div>
+      <p id="cart-empty" class="cart-empty">Корзина пуста — добавьте товары на главной</p>
+
+      <form id="checkout-form" class="checkout">
+        <h3 class="checkout__title">Оформление</h3>
+        <label class="field">
+          <span>Тип доставки</span>
+          <select name="deliveryType" id="f-delivery" required>
+            <option value="RF">Россия</option>
+            <option value="KZ">Казахстан</option>
+            <option value="SA">Саудовская Аравия</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Город</span>
+          <input type="text" name="city" id="f-city" required placeholder="Город доставки" autocomplete="address-level2" />
+        </label>
+        <label class="field">
+          <span>Телефон</span>
+          <input type="tel" name="phone" id="f-phone" required placeholder="+7 …" autocomplete="tel" />
+        </label>
+        <label class="field">
+          <span>Комментарий</span>
+          <textarea name="comment" id="f-comment" rows="2" placeholder="Пожелания к заказу"></textarea>
+        </label>
+        <label class="field">
+          <span>Оплата</span>
+          <select name="payment" id="f-payment" required>
+            <option value="cash">Наличные</option>
+            <option value="card">Карта</option>
+          </select>
+        </label>
+        <button type="submit" class="btn btn--primary btn--block" id="btn-submit">Отправить заказ в бот</button>
+      </form>
+    </section>
+
+    <section id="page-profile" class="page">
+      <h2 class="section-title">Профиль</h2>
+      <div class="profile-card" id="profile-info"></div>
+      <p class="hint">Цель покупки вы задаёте в боте при /start</p>
+    </section>
+
+    <nav class="bottom-nav">
+      <button type="button" class="nav-btn nav-btn--active" data-page="home" aria-label="Главная">
+        <span class="nav-btn__icon">🏠</span>
+        <span>Главная</span>
+      </button>
+      <button type="button" class="nav-btn" data-page="cart" aria-label="Корзина">
+        <span class="nav-btn__icon nav-btn__wrap">
+          🛒
+          <span class="badge" id="cart-badge">0</span>
+        </span>
+        <span>Корзина</span>
+      </button>
+      <button type="button" class="nav-btn" data-page="profile" aria-label="Профиль">
+        <span class="nav-btn__icon">👤</span>
+        <span>Профиль</span>
+      </button>
+    </nav>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
