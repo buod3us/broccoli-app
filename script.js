@@ -1,26 +1,152 @@
 /**
- * Mini App «Бро Кколи» — id товаров должны совпадать с catalog.MINI_APP_PRODUCT_IDS в боте.
+ * Mini App «Бро Кколи» — id товаров = catalog.MINI_APP_PRODUCT_IDS в боте.
+ * Открывайте через reply-кнопку «Магазин», иначе sendData недоступен.
+ *
+ * --- Свои картинки ---
+ * Положите файлы в папку web/images/ рядом с index.html:
+ *   images/logo.png          — логотип (квадрат ~256×256, PNG или JPG)
+ *   images/products/<id>.jpg — фото товара; <id> как в поле id ниже (например buckwheat_chicken.jpg)
+ * Если файла нет, покажется эмодзи из поля emoji.
  */
+
 const PRODUCTS = [
-  { id: "buckwheat_chicken", title: "Гречка с курицей", emoji: "🍲", price: 350 },
-  { id: "rice_chicken", title: "Рис с курицей", emoji: "🍛", price: 350 },
-  { id: "beef_buckwheat", title: "Гречка с говядиной", emoji: "🥩", price: 350 },
+  {
+    id: "buckwheat_chicken",
+    title: "Гречка с курицей",
+    emoji: "🍲",
+    price: 350,
+    image: "images/products/buckwheat_chicken.jpg",
+  },
+  {
+    id: "rice_chicken",
+    title: "Рис с курицей",
+    emoji: "🍛",
+    price: 350,
+    image: "images/products/rice_chicken.jpg",
+  },
+  {
+    id: "beef_buckwheat",
+    title: "Гречка с говядиной",
+    emoji: "🥩",
+    price: 350,
+    image: "images/products/beef_buckwheat.jpg",
+  },
 ];
 
-const BANNERS = [
-  { bg: "linear-gradient(135deg,#2e7d32,#66bb6a)", text: "Халяль • 5 минут • Сублимация" },
-  { bg: "linear-gradient(135deg,#1b5e20,#81c784)", text: "Бро Кколи — еда для быта и Хаджа" },
-  { bg: "linear-gradient(135deg,#388e3c,#a5d6a7)", text: "350 ₽ за порцию в приложении" },
+/** Слайды: светлая тема */
+const BANNERS_LIGHT = [
+  {
+    image: "images/banner-1.jpg",
+    bg: "linear-gradient(145deg,#14532d 0%,#166534 45%,#22c55e 100%)",
+  },
+  {
+    image: "images/banner-2.jpg",
+    bg: "linear-gradient(145deg,#052e16 0%,#15803d 50%,#4ade80 100%)",
+  },
+  {
+    image: "images/banner-3.jpg",
+    bg: "linear-gradient(145deg,#166534 0%,#22c55e 100%)",
+  },
 ];
+
+/** Тёмная тема (палитра broccoli-food.store: #0a0a0a + #93c94e) */
+const BANNERS_DARK = [
+  {
+    image: "images/banner-1.jpg",
+    bg: "linear-gradient(145deg,#0a0a0a 0%,#1a2e14 40%,#93c94e 100%)",
+  },
+  {
+    image: "images/banner-2.jpg",
+    bg: "linear-gradient(145deg,#000000 0%,#1f3d1a 50%,#7ab83d 100%)",
+  },
+  {
+    image: "images/banner-3.jpg",
+    bg: "linear-gradient(145deg,#0f0f0f 0%,#93c94e 90%,#b8e06a 100%)",
+  },
+];
+
+const LOGO_IMAGE = "images/logo.png";
 
 const CART_KEY = "broccoli_cart_v1";
+const THEME_KEY = "broccoli_theme";
 
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) {
   tg.ready();
   tg.expand();
-  if (tg.setHeaderColor) tg.setHeaderColor("#ffffff");
-  if (tg.setBackgroundColor) tg.setBackgroundColor("#ffffff");
+}
+
+let sliderIntervalId = null;
+
+function getTheme() {
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+}
+
+function applyTelegramChrome() {
+  if (!tg) return;
+  const dark = getTheme() === "dark";
+  if (tg.setHeaderColor) tg.setHeaderColor(dark ? "#0a0a0a" : "#ffffff");
+  if (tg.setBackgroundColor) tg.setBackgroundColor(dark ? "#0a0a0a" : "#f4f7f4");
+}
+
+function initTheme() {
+  let t = localStorage.getItem(THEME_KEY);
+  if (t !== "light" && t !== "dark") {
+    t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  document.documentElement.setAttribute("data-theme", t);
+  applyTelegramChrome();
+  const btn = document.getElementById("theme-toggle");
+  if (btn) {
+    btn.setAttribute(
+      "aria-label",
+      t === "dark" ? "Светлая тема" : "Тёмная тема",
+    );
+  }
+}
+
+function toggleTheme() {
+  const next = getTheme() === "dark" ? "light" : "dark";
+  localStorage.setItem(THEME_KEY, next);
+  document.documentElement.setAttribute("data-theme", next);
+  applyTelegramChrome();
+  const btn = document.getElementById("theme-toggle");
+  if (btn) {
+    btn.setAttribute(
+      "aria-label",
+      next === "dark" ? "Светлая тема" : "Тёмная тема",
+    );
+  }
+  rebuildSlider();
+}
+
+function rebuildSlider() {
+  const track = document.getElementById("slider-track");
+  const dots = document.getElementById("slider-dots");
+  if (!track || !dots) return;
+  if (sliderIntervalId) {
+    clearInterval(sliderIntervalId);
+    sliderIntervalId = null;
+  }
+  track.innerHTML = "";
+  dots.innerHTML = "";
+  initSlider();
+}
+
+function initLogo() {
+  const img = document.getElementById("logo-image");
+  const fallback = document.getElementById("logo-emoji");
+  if (!img || !fallback) return;
+  img.src = LOGO_IMAGE;
+  img.addEventListener("error", () => {
+    img.hidden = true;
+    fallback.hidden = false;
+  });
+  img.addEventListener("load", () => {
+    if (img.naturalWidth > 0) {
+      fallback.hidden = true;
+    }
+  });
 }
 
 function loadCart() {
@@ -58,6 +184,20 @@ function addToCart(id) {
   if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred("light");
 }
 
+function productImageBlock(p) {
+  const src = p.image ? escapeHtml(p.image) : "";
+  const em = escapeHtml(p.emoji);
+  if (!src) {
+    return `<div class="product-card__img"><span class="product-card__emoji">${em}</span></div>`;
+  }
+  return `
+    <div class="product-card__img">
+      <img class="product-card__photo" src="${src}" alt="" loading="lazy"
+        onerror="this.style.display='none'; var f=this.nextElementSibling; if(f) f.style.display='flex';" />
+      <span class="product-card__emoji" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;">${em}</span>
+    </div>`;
+}
+
 function renderProducts() {
   const grid = document.getElementById("products-grid");
   if (!grid) return;
@@ -66,7 +206,7 @@ function renderProducts() {
     const card = document.createElement("article");
     card.className = "product-card";
     card.innerHTML = `
-      <div class="product-card__img">${p.emoji}</div>
+      ${productImageBlock(p)}
       <div class="product-card__body">
         <h3 class="product-card__title">${escapeHtml(p.title)}</h3>
         <div class="product-card__price">${p.price} ₽</div>
@@ -112,11 +252,18 @@ function initSlider() {
   const track = document.getElementById("slider-track");
   const dots = document.getElementById("slider-dots");
   if (!track || !dots) return;
-  BANNERS.forEach((b, i) => {
+  const banners = getTheme() === "dark" ? BANNERS_DARK : BANNERS_LIGHT;
+  banners.forEach((b, i) => {
     const slide = document.createElement("div");
     slide.className = "slider__slide";
     slide.style.background = b.bg;
-    slide.textContent = b.text;
+    if (b.image) {
+      slide.style.backgroundImage = `url(${JSON.stringify(b.image)})`;
+      slide.style.backgroundSize = "cover";
+      slide.style.backgroundPosition = "center";
+      slide.style.backgroundBlendMode = "soft-light";
+    }
+    slide.setAttribute("aria-hidden", "true");
     track.appendChild(slide);
     const dot = document.createElement("button");
     dot.type = "button";
@@ -132,8 +279,8 @@ function initSlider() {
       d.classList.toggle("slider__dot--active", j === idx);
     });
   }
-  setInterval(() => {
-    idx = (idx + 1) % BANNERS.length;
+  sliderIntervalId = setInterval(() => {
+    idx = (idx + 1) % banners.length;
     goSlide(idx);
   }, 4000);
 }
@@ -182,16 +329,19 @@ document.getElementById("checkout-form").addEventListener("submit", (e) => {
     return;
   }
   const fd = new FormData(e.target);
+  const total_price = items.reduce((s, it) => s + it.qty * it.price, 0);
   const payload = {
     items,
     deliveryType: fd.get("deliveryType"),
     city: String(fd.get("city") || "").trim(),
+    address: String(fd.get("address") || "").trim(),
     phone: String(fd.get("phone") || "").trim(),
     comment: String(fd.get("comment") || "").trim(),
     payment: fd.get("payment"),
+    total_price,
   };
-  if (payload.city.length < 2 || payload.phone.length < 5) {
-    if (tg) tg.showAlert("Укажите город и телефон");
+  if (payload.city.length < 2 || payload.phone.length < 5 || payload.address.length < 3) {
+    if (tg) tg.showAlert("Укажите город, адрес и телефон");
     return;
   }
   if (!tg) {
@@ -211,8 +361,16 @@ document.getElementById("checkout-form").addEventListener("submit", (e) => {
   }
 });
 
+initTheme();
+initLogo();
 renderProducts();
 initSlider();
+
+document.getElementById("theme-toggle")?.addEventListener("click", () => {
+  toggleTheme();
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred("light");
+});
+
 updateBadge();
 renderProfile();
 showPage("home");

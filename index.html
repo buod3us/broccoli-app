@@ -4,18 +4,43 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Бро Кколи — магазин</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("broccoli_theme");
+        if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="app">
     <header class="header">
-      <div class="logo">
-        <span class="logo__mark">🥦</span>
-        <div class="logo__text">
-          <span class="logo__name">Бро Кколи</span>
-          <span class="logo__tag">сублимированная халяль еда</span>
+      <div class="header__bar">
+        <div class="logo">
+          <img
+            class="logo__img"
+            id="logo-image"
+            src="images/logo.png"
+            alt="Бро Кколи"
+            width="44"
+            height="44"
+          />
+          <span class="logo__mark" id="logo-emoji" hidden aria-hidden="true">🥦</span>
+          <div class="logo__text">
+            <span class="logo__name">Бро Кколи</span>
+            <span class="logo__tag">сублимированная халяль еда</span>
+          </div>
         </div>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Переключить тему">
+          <span class="theme-toggle__moon" aria-hidden="true">🌙</span>
+          <span class="theme-toggle__sun" aria-hidden="true">☀️</span>
+        </button>
       </div>
     </header>
 
@@ -48,6 +73,10 @@
           <input type="text" name="city" id="f-city" required placeholder="Город доставки" autocomplete="address-level2" />
         </label>
         <label class="field">
+          <span>Адрес</span>
+          <input type="text" name="address" id="f-address" required placeholder="Улица, дом, квартира" autocomplete="street-address" />
+        </label>
+        <label class="field">
           <span>Телефон</span>
           <input type="tel" name="phone" id="f-phone" required placeholder="+7 …" autocomplete="tel" />
         </label>
@@ -62,7 +91,7 @@
             <option value="card">Карта</option>
           </select>
         </label>
-        <button type="submit" class="btn btn--primary btn--block" id="btn-submit">Отправить заказ в бот</button>
+        <button type="submit" class="btn btn--primary btn--block" id="btn-submit">Оформить заказ</button>
       </form>
     </section>
 
