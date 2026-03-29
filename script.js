@@ -359,30 +359,34 @@ function updateCartTotals() {
 
   summary.hidden = false;
   const t = computeTotals();
-  const showDiscountedPay =
+  const hasRealDiscount =
     appliedPromo &&
     t.discountPercent > 0 &&
     t.final < t.subtotal;
-  if (showDiscountedPay) {
+
+  finalRow.hidden = false;
+
+  if (hasRealDiscount) {
     subEl.classList.add("cart-summary__price--strike");
     subEl.textContent = `${t.subtotal} ₽`;
     promoLine.hidden = false;
     promoLine.textContent = `Промокод ${appliedPromo.code} применён: −${t.discountPercent}%`;
-    finalRow.hidden = false;
     finalEl.textContent = `${t.final} ₽`;
+    finalEl.className = "cart-summary__price cart-summary__price--final";
   } else if (t.promoPending && appliedPromo) {
     subEl.classList.remove("cart-summary__price--strike");
     subEl.textContent = `${t.subtotal} ₽`;
     promoLine.hidden = false;
     promoLine.textContent =
       `Промокод ${appliedPromo.code} — точную сумму со скидкой подтвердит бот после оформления`;
-    finalRow.hidden = true;
+    finalEl.textContent = `${t.subtotal} ₽`;
+    finalEl.className = "cart-summary__price";
   } else {
     subEl.classList.remove("cart-summary__price--strike");
     subEl.textContent = `${t.subtotal} ₽`;
     promoLine.hidden = true;
-    finalRow.hidden = true;
-    finalEl.textContent = "—";
+    finalEl.textContent = `${t.subtotal} ₽`;
+    finalEl.className = "cart-summary__price";
   }
 }
 
