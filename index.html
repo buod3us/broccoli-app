@@ -52,11 +52,15 @@
         <div class="slider__dots" id="slider-dots"></div>
       </div>
       <h2 class="section-title">Каталог</h2>
+      <div id="categories-list" class="categories-list"></div>
       <div class="products" id="products-grid"></div>
     </section>
 
     <section id="page-cart" class="page">
-      <h2 class="section-title">Корзина</h2>
+      <div class="cart-header">
+        <h2 class="section-title">Корзина</h2>
+        <button type="button" id="btn-clear-cart" class="btn-clear-cart" hidden>Очистить 🗑️</button>
+      </div>
       <div id="cart-list" class="cart-list"></div>
       <div id="cart-summary" class="cart-summary" hidden>
         <div class="cart-summary__row">

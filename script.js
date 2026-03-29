@@ -16,6 +16,7 @@ const PRODUCTS = [
   {
     id: "buckwheat_chicken",
     title: "Гречка с курицей",
+    categoryId: "chicken",
     emoji: "🍲",
     price: 350,
     image: "images/products/buckwheat_chicken.jpg",
@@ -23,6 +24,7 @@ const PRODUCTS = [
   {
     id: "rice_chicken",
     title: "Рис с курицей",
+    categoryId: "chicken",
     emoji: "🍛",
     price: 350,
     image: "images/products/rice_chicken.jpg",
@@ -30,11 +32,37 @@ const PRODUCTS = [
   {
     id: "beef_buckwheat",
     title: "Гречка с говядиной",
+    categoryId: "beef",
     emoji: "🥩",
     price: 350,
     image: "images/products/beef_buckwheat.jpg",
   },
+  {
+    id: "chicken_soup",
+    title: "Куриный суп",
+    categoryId: "soup",
+    emoji: "🥣",
+    price: 250,
+    image: "images/products/chicken_soup.jpg",
+  },
+  {
+    id: "beef_soup",
+    title: "Говяжий бульон",
+    categoryId: "soup",
+    emoji: "🍲",
+    price: 280,
+    image: "images/products/beef_soup.jpg",
+  },
 ];
+
+const CATEGORIES = [
+  { id: "all", title: "Все товары" },
+  { id: "chicken", title: "С курицей" },
+  { id: "beef", title: "С говядиной" },
+  { id: "soup", title: "Супы" },
+];
+
+let currentCategory = "all";
 
 /** Слайды: лёгкий светлый тон поверх фото (слабый градиент) */
 const BANNERS_LIGHT = [
@@ -210,6 +238,11 @@ function updateBadge() {
   if (!el) return;
   el.textContent = n;
   el.style.display = n > 0 ? "flex" : "none";
+  
+  const clearBtn = document.getElementById("btn-clear-cart");
+  if (clearBtn) {
+    clearBtn.hidden = n === 0;
+  }
 }
 
 function mergeRemotePromos() {
@@ -322,11 +355,36 @@ function productImageBlock(p) {
     </div>`;
 }
 
+function renderCategories() {
+  const container = document.getElementById("categories-list");
+  if (!container) return;
+  container.innerHTML = "";
+  
+  CATEGORIES.forEach(cat => {
+    const btn = document.createElement("button");
+    btn.className = "category-btn" + (currentCategory === cat.id ? " category-btn--active" : "");
+    btn.textContent = cat.title;
+    btn.addEventListener("click", () => {
+      currentCategory = cat.id;
+      renderCategories();
+      renderProducts();
+      if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+    });
+    container.appendChild(btn);
+  });
+}
+
 function renderProducts() {
   const grid = document.getElementById("products-grid");
   if (!grid) return;
   grid.innerHTML = "";
-  PRODUCTS.forEach((p) => {
+  
+  // Фильтрация товаров по категории
+  const filteredProducts = PRODUCTS.filter(p => 
+    currentCategory === "all" || p.categoryId === currentCategory
+  );
+
+  filteredProducts.forEach((p) => {
     const card = document.createElement("article");
     card.className = "product-card";
     card.innerHTML = `
@@ -679,15 +737,32 @@ document.getElementById("checkout-form").addEventListener("submit", (e) => {
   }
 });
 
+function clearCart() {
+  localStorage.removeItem(CART_KEY);
+  appliedPromo = null;
+  saveAppliedPromo();
+  updateBadge();
+  renderCartList();
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("warning");
+}
+
 async function boot() {
   appliedPromo = loadAppliedPromoState();
   await mergeRemotePromos();
   reconcileAppliedPromoDiscount();
   initTheme();
   initLogo();
+  renderCategories();
   renderProducts();
   initSlider();
   initCartListDelegation();
+  
+  document.getElementById("btn-clear-cart")?.addEventListener("click", () => {
+    if (confirm("Вы уверены, что хотите очистить корзину?")) {
+      clearCart();
+    }
+  });
+
   document.getElementById("promo-apply")?.addEventListener("click", () => tryApplyPromo());
   document.getElementById("promo-clear")?.addEventListener("click", () => clearPromo());
   document.getElementById("theme-toggle")?.addEventListener("click", () => {
