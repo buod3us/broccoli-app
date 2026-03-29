@@ -8,8 +8,8 @@
  *   images/products/<id>.jpg — фото товара; <id> как в поле id ниже (например buckwheat_chicken.jpg)
  * Если файла нет, покажется эмодзи из поля emoji.
  *
- * Промокод «Применить»: код сохраняется и проверяется ботом при оформлении (БД).
- * web/promos.json и PROMO_CODES — по желанию, только чтобы показать процент скидки в корзине до отправки.
+ * Промокод «Применить»: только коды из web/promos.json и PROMO_CODES (MERGED_PROMOS).
+ * Иначе — ошибка «не найден». Бот при оформлении сверяет код с БД.
  */
 
 const PRODUCTS = [
@@ -220,13 +220,26 @@ function mergeRemotePromos() {
     .catch(() => {});
 }
 
-/** После загрузки promos.json подставить процент в сохранённый промокод (было discount: 0). */
+/** После загрузки promos.json: подставить процент или сбросить, если кода нет в списке. */
 function reconcileAppliedPromoDiscount() {
   if (!appliedPromo || !appliedPromo.code) return;
   const key = String(appliedPromo.code).toUpperCase();
   const p = MERGED_PROMOS[key];
-  if (p == null || !Number.isFinite(Number(p))) return;
+  if (p == null || !Number.isFinite(Number(p))) {
+    appliedPromo = null;
+    saveAppliedPromo();
+    const input = document.getElementById("promo-input");
+    if (input) input.value = "";
+    return;
+  }
   const n = Math.max(0, Math.min(100, Math.round(Number(p))));
+  if (n < 1) {
+    appliedPromo = null;
+    saveAppliedPromo();
+    const input = document.getElementById("promo-input");
+    if (input) input.value = "";
+    return;
+  }
   if (n !== Number(appliedPromo.discount)) {
     appliedPromo.discount = n;
     saveAppliedPromo();
@@ -246,7 +259,6 @@ function computeTotals() {
       discountPercent: 0,
       final: subtotal,
       saved: 0,
-      promoPending: false,
     };
   }
   let d = Number(appliedPromo.discount) || 0;
@@ -258,7 +270,6 @@ function computeTotals() {
       discountPercent: 0,
       final: subtotal,
       saved: 0,
-      promoPending: true,
     };
   }
   const final = Math.max(0, Math.round(subtotal * (1 - d / 100)));
@@ -267,7 +278,6 @@ function computeTotals() {
     discountPercent: d,
     final,
     saved: subtotal - final,
-    promoPending: false,
   };
 }
 
@@ -373,14 +383,6 @@ function updateCartTotals() {
     promoLine.textContent = `Промокод ${appliedPromo.code} применён: −${t.discountPercent}%`;
     finalEl.textContent = `${t.final} ₽`;
     finalEl.className = "cart-summary__price cart-summary__price--final";
-  } else if (t.promoPending && appliedPromo) {
-    subEl.classList.remove("cart-summary__price--strike");
-    subEl.textContent = `${t.subtotal} ₽`;
-    promoLine.hidden = false;
-    promoLine.textContent =
-      `Промокод ${appliedPromo.code} — точную сумму со скидкой подтвердит бот после оформления`;
-    finalEl.textContent = `${t.subtotal} ₽`;
-    finalEl.className = "cart-summary__price";
   } else {
     subEl.classList.remove("cart-summary__price--strike");
     subEl.textContent = `${t.subtotal} ₽`;
@@ -439,17 +441,15 @@ function tryApplyPromo() {
     fromFile != null && Number.isFinite(Number(fromFile))
       ? Math.max(0, Math.min(100, Math.round(Number(fromFile))))
       : 0;
+  if (fromFile == null || !Number.isFinite(Number(fromFile)) || pct < 1) {
+    showPromoMessage("Промокод не найден", false);
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("error");
+    return;
+  }
   appliedPromo = { code: codeNorm, discount: pct };
   saveAppliedPromo();
   updateCartTotals();
-  if (pct > 0) {
-    showPromoMessage(`Промокод ${codeNorm} применён: −${pct}%`, true);
-  } else {
-    showPromoMessage(
-      `Код ${codeNorm} сохранён. Скидку проверит бот при оформлении (как в /add_promo).`,
-      true,
-    );
-  }
+  showPromoMessage(`Промокод ${codeNorm} применён: −${pct}%`, true);
   refreshPromoUI();
   if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
 }
