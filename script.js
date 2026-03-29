@@ -8,8 +8,8 @@
  *   images/products/<id>.jpg — фото товара; <id> как в поле id ниже (например buckwheat_chicken.jpg)
  * Если файла нет, покажется эмодзи из поля emoji.
  *
- * Промокоды для проверки в приложении: web/promos.json { "КОД": процент } и/или объект PROMO_CODES ниже
- * (должны совпадать с тем, что в боте /add_promo; итоговая скидка всё равно пересчитывается на сервере).
+ * Промокод «Применить»: код сохраняется и проверяется ботом при оформлении (БД).
+ * web/promos.json и PROMO_CODES — по желанию, только чтобы показать процент скидки в корзине до отправки.
  */
 
 const PRODUCTS = [
@@ -36,35 +36,34 @@ const PRODUCTS = [
   },
 ];
 
-/** Слайды: светлая тема */
+/** Слайды: лёгкий светлый тон поверх фото (слабый градиент) */
 const BANNERS_LIGHT = [
   {
     image: "images/banner-1.jpg",
-    bg: "linear-gradient(145deg,#14532d 0%,#166534 45%,#22c55e 100%)",
+    bg: "linear-gradient(145deg,rgba(240,253,244,0.75) 0%,rgba(220,252,231,0.5) 50%,rgba(187,247,208,0.25) 100%)",
   },
   {
     image: "images/banner-2.jpg",
-    bg: "linear-gradient(145deg,#052e16 0%,#15803d 50%,#4ade80 100%)",
+    bg: "linear-gradient(145deg,rgba(236,253,245,0.7) 0%,rgba(209,250,229,0.35) 100%)",
   },
   {
     image: "images/banner-3.jpg",
-    bg: "linear-gradient(145deg,#166534 0%,#22c55e 100%)",
+    bg: "linear-gradient(145deg,rgba(240,253,244,0.65) 0%,rgba(167,243,208,0.22) 100%)",
   },
 ];
 
-/** Тёмная тема (палитра broccoli-food.store: #0a0a0a + #93c94e) */
 const BANNERS_DARK = [
   {
     image: "images/banner-1.jpg",
-    bg: "linear-gradient(145deg,#0a0a0a 0%,#1a2e14 40%,#93c94e 100%)",
+    bg: "linear-gradient(145deg,rgba(147,201,78,0.14) 0%,rgba(60,70,55,0.12) 50%,rgba(25,28,24,0.1) 100%)",
   },
   {
     image: "images/banner-2.jpg",
-    bg: "linear-gradient(145deg,#000000 0%,#1f3d1a 50%,#7ab83d 100%)",
+    bg: "linear-gradient(145deg,rgba(130,190,70,0.12) 0%,rgba(45,52,42,0.1) 100%)",
   },
   {
     image: "images/banner-3.jpg",
-    bg: "linear-gradient(145deg,#0f0f0f 0%,#93c94e 90%,#b8e06a 100%)",
+    bg: "linear-gradient(145deg,rgba(147,201,78,0.1) 0%,rgba(55,62,50,0.08) 100%)",
   },
 ];
 
@@ -229,11 +228,32 @@ function computeTotals() {
     if (q > 0) subtotal += q * p.price;
   });
   if (!appliedPromo || subtotal <= 0) {
-    return { subtotal, discountPercent: 0, final: subtotal, saved: 0 };
+    return {
+      subtotal,
+      discountPercent: 0,
+      final: subtotal,
+      saved: 0,
+      promoPending: false,
+    };
   }
-  const d = appliedPromo.discount;
+  const d = Number(appliedPromo.discount) || 0;
+  if (!d) {
+    return {
+      subtotal,
+      discountPercent: 0,
+      final: subtotal,
+      saved: 0,
+      promoPending: true,
+    };
+  }
   const final = Math.round(subtotal * (1 - d / 100));
-  return { subtotal, discountPercent: d, final, saved: subtotal - final };
+  return {
+    subtotal,
+    discountPercent: d,
+    final,
+    saved: subtotal - final,
+    promoPending: false,
+  };
 }
 
 function setCartQty(id, qty) {
@@ -331,6 +351,13 @@ function updateCartTotals() {
     promoLine.textContent = `Промокод ${appliedPromo.code} применён: −${t.discountPercent}%`;
     finalRow.hidden = false;
     finalEl.textContent = `${t.final} ₽`;
+  } else if (t.promoPending && appliedPromo) {
+    subEl.classList.remove("cart-summary__price--strike");
+    subEl.textContent = `${t.subtotal} ₽`;
+    promoLine.hidden = false;
+    promoLine.textContent =
+      `Промокод ${appliedPromo.code} — точную сумму со скидкой подтвердит бот после оформления`;
+    finalRow.hidden = true;
   } else {
     subEl.classList.remove("cart-summary__price--strike");
     subEl.textContent = `${t.subtotal} ₽`;
@@ -369,13 +396,8 @@ function tryApplyPromo() {
     showPromoMessage("Введите промокод", false);
     return;
   }
-  const upper = raw.toUpperCase();
-  const pct = MERGED_PROMOS[upper];
-  if (pct === undefined || pct === null) {
-    showPromoMessage("Промокод не найден", false);
-    appliedPromo = null;
-    saveAppliedPromo();
-    updateCartTotals();
+  if (raw.length < 2 || raw.length > 32) {
+    showPromoMessage("Код: от 2 до 32 символов", false);
     return;
   }
   const cart = loadCart();
@@ -387,10 +409,23 @@ function tryApplyPromo() {
     showPromoMessage("Сначала добавьте товары в корзину", false);
     return;
   }
-  appliedPromo = { code: upper, discount: pct };
+  const codeNorm = raw.toUpperCase();
+  const fromFile = MERGED_PROMOS[codeNorm];
+  const pct =
+    fromFile != null && Number.isFinite(Number(fromFile))
+      ? Math.max(0, Math.min(99, Math.round(Number(fromFile))))
+      : 0;
+  appliedPromo = { code: codeNorm, discount: pct };
   saveAppliedPromo();
   updateCartTotals();
-  showPromoMessage(`Промокод ${upper} применён: −${pct}%`, true);
+  if (pct > 0) {
+    showPromoMessage(`Промокод ${codeNorm} применён: −${pct}%`, true);
+  } else {
+    showPromoMessage(
+      `Код ${codeNorm} сохранён. Скидку проверит бот при оформлении (как в /add_promo).`,
+      true,
+    );
+  }
   refreshPromoUI();
   if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
 }
@@ -474,13 +509,23 @@ function initSlider() {
   banners.forEach((b, i) => {
     const slide = document.createElement("div");
     slide.className = "slider__slide";
-    slide.style.background = b.bg;
     if (b.image) {
-      slide.style.backgroundImage = `url(${JSON.stringify(b.image)})`;
-      slide.style.backgroundSize = "cover";
-      slide.style.backgroundPosition = "center";
-      slide.style.backgroundBlendMode = "soft-light";
+      const img = document.createElement("img");
+      img.className = "slider__slide-photo";
+      img.src = b.image;
+      img.alt = "";
+      img.loading = "eager";
+      img.decoding = "async";
+      img.addEventListener("error", () => {
+        img.remove();
+      });
+      slide.appendChild(img);
     }
+    const overlay = document.createElement("div");
+    overlay.className = "slider__slide-overlay";
+    overlay.style.background = b.bg;
+    overlay.setAttribute("aria-hidden", "true");
+    slide.appendChild(overlay);
     slide.setAttribute("aria-hidden", "true");
     track.appendChild(slide);
     const dot = document.createElement("button");

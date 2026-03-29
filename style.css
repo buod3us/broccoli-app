@@ -24,12 +24,12 @@
   --shadow-sm: 0 1px 3px rgba(20, 83, 45, 0.06);
   --shadow-md: 0 8px 30px rgba(20, 83, 45, 0.08);
   --shadow-nav: 0 -6px 24px rgba(15, 23, 42, 0.06);
-  --btn-primary: linear-gradient(180deg, #16a34a 0%, #15803d 100%);
+  --btn-primary: linear-gradient(180deg, #22c55e 0%, #16a34a 55%, #15803d 100%);
   --btn-primary-text: #ffffff;
   --btn-primary-shadow: 0 2px 8px rgba(22, 101, 52, 0.35);
   --focus-ring: rgba(34, 197, 94, 0.2);
   --logo-box-bg: var(--green-50);
-  --product-img-bg: linear-gradient(180deg, var(--green-50) 0%, var(--bg-elevated) 100%);
+  --product-img-bg: linear-gradient(180deg, #f6fcf8 0%, var(--bg-card) 100%);
   --slider-border: var(--border-soft);
   --radius: 14px;
   --radius-sm: 10px;
@@ -68,7 +68,7 @@
   --btn-primary-shadow: 0 2px 14px rgba(147, 201, 78, 0.35);
   --focus-ring: rgba(147, 201, 78, 0.25);
   --logo-box-bg: #1f1f1f;
-  --product-img-bg: linear-gradient(180deg, #1a1f17 0%, #141414 100%);
+  --product-img-bg: linear-gradient(180deg, #1e1e1e 0%, #161616 100%);
   --slider-border: #2e2e2e;
 }
 
@@ -234,9 +234,35 @@ body {
 }
 
 .slider__slide {
+  position: relative;
   min-width: 100%;
   min-height: 148px;
   padding: 0;
+  overflow: hidden;
+}
+
+.slider__slide-photo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+/* Полупрозрачный слой поверх фото — слабый светлый тон, не перекрывает картинку */
+.slider__slide-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.26;
+}
+
+[data-theme="dark"] .slider__slide-overlay {
+  opacity: 0.22;
 }
 
 .slider__dots {
