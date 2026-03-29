@@ -69,6 +69,15 @@ const BANNERS_DARK = [
 
 const LOGO_IMAGE = "images/logo.png";
 
+/** Увеличьте при замене баннеров с тем же именем файла (иначе CDN/браузер покажут старое изображение). */
+const BANNER_IMG_VER = "20";
+
+function bannerImgUrl(path) {
+  if (!path) return path;
+  const sep = path.includes("?") ? "&" : "?";
+  return `${path}${sep}v=${BANNER_IMG_VER}`;
+}
+
 const CART_KEY = "broccoli_cart_v1";
 const THEME_KEY = "broccoli_theme";
 const PROMO_KEY = "broccoli_promo_v1";
@@ -536,7 +545,7 @@ function initSlider() {
     if (b.image) {
       const img = document.createElement("img");
       img.className = "slider__slide-photo";
-      img.src = b.image;
+      img.src = bannerImgUrl(b.image);
       img.alt = "";
       img.loading = "eager";
       img.decoding = "async";
