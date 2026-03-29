@@ -205,7 +205,7 @@ function updateBadge() {
 
 function mergeRemotePromos() {
   MERGED_PROMOS = { ...PROMO_CODES };
-  return fetch("promos.json?v=11", { cache: "no-store" })
+  return fetch("promos.json?v=20", { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : {}))
     .then((j) => {
       if (j && typeof j === "object" && !Array.isArray(j)) {
