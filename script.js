@@ -205,19 +205,32 @@ function updateBadge() {
 
 function mergeRemotePromos() {
   MERGED_PROMOS = { ...PROMO_CODES };
-  return fetch("promos.json?v=4", { cache: "no-store" })
+  return fetch("promos.json?v=11", { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : {}))
     .then((j) => {
       if (j && typeof j === "object" && !Array.isArray(j)) {
         for (const [k, v] of Object.entries(j)) {
           const n = Number(v);
-          if (Number.isFinite(n) && n > 0 && n < 100) {
-            MERGED_PROMOS[String(k).toUpperCase()] = Math.round(n);
+          if (Number.isFinite(n) && n > 0 && n <= 100) {
+            MERGED_PROMOS[String(k).toUpperCase()] = Math.min(100, Math.round(n));
           }
         }
       }
     })
     .catch(() => {});
+}
+
+/** После загрузки promos.json подставить процент в сохранённый промокод (было discount: 0). */
+function reconcileAppliedPromoDiscount() {
+  if (!appliedPromo || !appliedPromo.code) return;
+  const key = String(appliedPromo.code).toUpperCase();
+  const p = MERGED_PROMOS[key];
+  if (p == null || !Number.isFinite(Number(p))) return;
+  const n = Math.max(0, Math.min(100, Math.round(Number(p))));
+  if (n !== Number(appliedPromo.discount)) {
+    appliedPromo.discount = n;
+    saveAppliedPromo();
+  }
 }
 
 function computeTotals() {
@@ -236,7 +249,9 @@ function computeTotals() {
       promoPending: false,
     };
   }
-  const d = Number(appliedPromo.discount) || 0;
+  let d = Number(appliedPromo.discount) || 0;
+  if (!Number.isFinite(d)) d = 0;
+  d = Math.max(0, Math.min(100, d));
   if (!d) {
     return {
       subtotal,
@@ -246,7 +261,7 @@ function computeTotals() {
       promoPending: true,
     };
   }
-  const final = Math.round(subtotal * (1 - d / 100));
+  const final = Math.max(0, Math.round(subtotal * (1 - d / 100)));
   return {
     subtotal,
     discountPercent: d,
@@ -344,7 +359,11 @@ function updateCartTotals() {
 
   summary.hidden = false;
   const t = computeTotals();
-  if (t.discountPercent > 0 && appliedPromo) {
+  const showDiscountedPay =
+    appliedPromo &&
+    t.discountPercent > 0 &&
+    t.final < t.subtotal;
+  if (showDiscountedPay) {
     subEl.classList.add("cart-summary__price--strike");
     subEl.textContent = `${t.subtotal} ₽`;
     promoLine.hidden = false;
@@ -363,6 +382,7 @@ function updateCartTotals() {
     subEl.textContent = `${t.subtotal} ₽`;
     promoLine.hidden = true;
     finalRow.hidden = true;
+    finalEl.textContent = "—";
   }
 }
 
@@ -413,7 +433,7 @@ function tryApplyPromo() {
   const fromFile = MERGED_PROMOS[codeNorm];
   const pct =
     fromFile != null && Number.isFinite(Number(fromFile))
-      ? Math.max(0, Math.min(99, Math.round(Number(fromFile))))
+      ? Math.max(0, Math.min(100, Math.round(Number(fromFile))))
       : 0;
   appliedPromo = { code: codeNorm, discount: pct };
   saveAppliedPromo();
@@ -649,6 +669,7 @@ document.getElementById("checkout-form").addEventListener("submit", (e) => {
 async function boot() {
   appliedPromo = loadAppliedPromoState();
   await mergeRemotePromos();
+  reconcileAppliedPromoDiscount();
   initTheme();
   initLogo();
   renderProducts();
@@ -662,6 +683,7 @@ async function boot() {
   });
   updateBadge();
   renderProfile();
+  renderCartList();
   showPage("home");
 }
 
