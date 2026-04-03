@@ -1,7 +1,7 @@
 {
   "buckwheat_chicken": true,
   "rice_chicken": false,
-  "beef_buckwheat": true,
-  "chicken_soup": true,
+  "beef_buckwheat": false,
+  "chicken_soup": false,
   "beef_soup": true
 }
