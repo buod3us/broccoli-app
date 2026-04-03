@@ -207,6 +207,20 @@ async def on_web_app_data(message: Message) -> None:
         await message.answer(msg.webapp_bad_data_plain(), parse_mode=None)
         return
 
+    unavailable_ids = await db.get_unavailable_product_ids([item["id"] for item in items])
+    if unavailable_ids:
+        unavailable_titles = [item["title"] for item in items if item["id"] in unavailable_ids]
+        log.info(
+            "web_app_data: товары не в наличии user_id=%s ids=%s",
+            uid,
+            sorted(unavailable_ids),
+        )
+        await message.answer(
+            msg.webapp_out_of_stock_plain(unavailable_titles),
+            parse_mode=None,
+        )
+        return
+
     phone = _str_field(data, "phone")
     city = _str_field(data, "city")
     address = _str_field(data, "address")
@@ -296,21 +310,24 @@ async def on_web_app_data(message: Message) -> None:
         return
 
     u = message.from_user
-    admin_ok = await _notify_admin_order(
-        message.bot,
-        order_id=oid,
-        goal=goal,
-        username=u.username,
-        phone=phone,
-        city=city,
-        address=address,
-        total_price=subtotal_str,
-        promo_used=promo_used,
-        discount_percent=discount_percent,
-        discount_amount=discount_amount,
-        final_price=final_price_str,
-        comment=comment,
-    )
+    admin_ok = False
+    bot = message.bot
+    if bot is not None:
+        admin_ok = await _notify_admin_order(
+            bot,
+            order_id=oid,
+            goal=goal,
+            username=u.username,
+            phone=phone,
+            city=city,
+            address=address,
+            total_price=subtotal_str,
+            promo_used=promo_used,
+            discount_percent=discount_percent,
+            discount_amount=discount_amount,
+            final_price=final_price_str,
+            comment=comment,
+        )
     reply = msg.order_accepted_plain(city)
     if not admin_ok:
         reply = f"{reply}\n\n{msg.ORDER_ADMIN_NOTIFY_FAILED_PLAIN}"

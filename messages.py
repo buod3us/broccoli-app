@@ -109,6 +109,22 @@ def webapp_order_error_plain() -> str:
 def webapp_need_goal_plain() -> str:
     return "Сначала выберите цель в боте: команда /start и кнопки опроса."
 
+
+def webapp_out_of_stock_plain(items: list[str]) -> str:
+    cleaned = [str(item).strip() for item in items if str(item).strip()]
+    if not cleaned:
+        return "Один из товаров уже отсутствует в наличии. Обновите Mini App и оформите заказ заново."
+    if len(cleaned) == 1:
+        return (
+            f"Товара «{cleaned[0]}» сейчас нет в наличии. "
+            "Обновите Mini App и оформите заказ заново."
+        )
+    return (
+        "Сейчас нет в наличии: "
+        f"{', '.join(cleaned)}. "
+        "Обновите Mini App и оформите заказ заново."
+    )
+
 # --- ИИ ---
 
 

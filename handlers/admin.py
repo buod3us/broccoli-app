@@ -1,24 +1,33 @@
 import logging
+import asyncio
+import os
+from pathlib import Path
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
+from catalog import MINI_APP_PRODUCT_TITLES
 import database as db
-from config import ADMIN_ID
+from config import ADMIN_ID, BASE_DIR
 import messages as msg
 from keyboards import (
     kb_admin_order_after_preparation,
     kb_admin_order_cancelled_only,
     kb_admin_order_confirmed_only,
     kb_promo_list,
+    kb_product_stock,
 )
 from md2 import escape_md2
 
 log = logging.getLogger(__name__)
 
 router = Router(name="admin")
+
+_WEB_REPO_DIR = BASE_DIR / "web"
+_STOCK_REPO_FILE = Path("stock.json")
+_STOCK_PUBLISH_LOCK = asyncio.Lock()
 
 _ACTION_SUFFIX = {
     db.STATUS_CONFIRMED: (
@@ -36,6 +45,121 @@ _ACTION_SUFFIX = {
 }
 
 
+def _stock_panel_text(rows: list[dict]) -> str:
+    available = sum(1 for row in rows if row["in_stock"])
+    unavailable = len(rows) - available
+    return (
+        "Управление наличием товаров\n\n"
+        "Нажмите на товар, чтобы переключить статус.\n"
+        f"✅ В наличии: {available}\n"
+        f"❌ Нет в наличии: {unavailable}"
+    )
+
+
+def _stock_panel_markup(rows: list[dict]):
+    return kb_product_stock(
+        [
+            (str(row["id"]), str(row["title"]), bool(row["in_stock"]))
+            for row in rows
+        ]
+    )
+
+
+async def _run_web_git(*args: str) -> tuple[int, str]:
+    env = os.environ.copy()
+    env.setdefault("GIT_TERMINAL_PROMPT", "0")
+    env.setdefault("GCM_INTERACTIVE", "Never")
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git",
+            *args,
+            cwd=str(_WEB_REPO_DIR),
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+    except FileNotFoundError as e:
+        raise RuntimeError("git не найден на сервере") from e
+    try:
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=90)
+    except asyncio.TimeoutError as e:
+        proc.kill()
+        await proc.wait()
+        raise RuntimeError(f"git {' '.join(args)} превысил таймаут 90 сек.") from e
+    text = out.decode("utf-8", errors="replace").strip()
+    return proc.returncode or 0, text
+
+
+async def _publish_stock_json() -> str:
+    async with _STOCK_PUBLISH_LOCK:
+        if not _WEB_REPO_DIR.is_dir():
+            raise RuntimeError(f"Не найдена папка репозитория: {_WEB_REPO_DIR}")
+
+        code, output = await _run_web_git("rev-parse", "--is-inside-work-tree")
+        if code != 0 or not output.endswith("true"):
+            raise RuntimeError("папка web не является git-репозиторием")
+
+        code, branch_out = await _run_web_git("rev-parse", "--abbrev-ref", "HEAD")
+        branch = branch_out.splitlines()[-1].strip() if code == 0 and branch_out.strip() else "main"
+
+        code, output = await _run_web_git("add", "--", str(_STOCK_REPO_FILE))
+        if code != 0:
+            raise RuntimeError(output or "не удалось добавить stock.json в git")
+
+        code, output = await _run_web_git("diff", "--cached", "--quiet", "--", str(_STOCK_REPO_FILE))
+        if code == 0:
+            return "no_changes"
+        if code != 1:
+            raise RuntimeError(output or "не удалось проверить изменения stock.json")
+
+        code, output = await _run_web_git(
+            "commit",
+            "--only",
+            "-m",
+            "stock: update availability",
+            "--",
+            str(_STOCK_REPO_FILE),
+        )
+        if code != 0:
+            lowered = output.lower()
+            if "nothing to commit" in lowered or "no changes added" in lowered:
+                return "no_changes"
+            raise RuntimeError(output or "не удалось создать коммит stock.json")
+
+        code, output = await _run_web_git("push", "-u", "origin", branch)
+        if code != 0:
+            raise RuntimeError(output or f"не удалось выполнить git push origin {branch}")
+        return branch
+
+
+async def _publish_stock_json_in_background(
+    bot: Bot | None,
+    chat_id: int,
+    product_title: str,
+) -> None:
+    try:
+        result = await _publish_stock_json()
+        if result == "no_changes":
+            log.info("Автопубликация stock.json пропущена: нет новых изменений")
+            return
+        log.info(
+            "Автопубликация stock.json завершена: товар=%s branch=%s",
+            product_title,
+            result,
+        )
+    except Exception as e:
+        log.exception("Автопубликация stock.json не удалась: %s", e)
+        if bot is not None:
+            await bot.send_message(
+                chat_id,
+                (
+                    "Автопубликация наличия не удалась. "
+                    f"Mini App может показывать старый статус. Ошибка: {e}"
+                ),
+                parse_mode=None,
+            )
+
+
 @router.message(Command("admin_stats"))
 async def admin_stats(message: Message) -> None:
     if not message.from_user:
@@ -50,6 +174,51 @@ async def admin_stats(message: Message) -> None:
     hajj = by_goal.get("Хадж", 0)
     await message.answer(
         msg.admin_stats_text(total=total, byt=byt, sport=sport, hajj=hajj),
+    )
+
+
+@router.message(Command("stock"))
+async def cmd_stock(message: Message) -> None:
+    if not message.from_user or message.from_user.id != ADMIN_ID:
+        await message.answer(msg.admin_no_access())
+        return
+    rows = await db.list_product_stock()
+    await message.answer(
+        _stock_panel_text(rows),
+        reply_markup=_stock_panel_markup(rows),
+        parse_mode=None,
+    )
+
+
+@router.callback_query(F.data.startswith("admstk:"))
+async def cb_stock_toggle(cq: CallbackQuery) -> None:
+    if not cq.from_user or cq.from_user.id != ADMIN_ID:
+        await cq.answer(msg.ADMIN_NO_ACCESS_PLAIN, show_alert=True)
+        return
+    if not cq.data or not cq.message:
+        await cq.answer()
+        return
+    parts = cq.data.split(":")
+    if len(parts) != 3 or parts[0] != "admstk":
+        await cq.answer()
+        return
+    product_id = parts[1].strip()
+    in_stock = parts[2] == "1"
+    ok = await db.set_product_stock(product_id, in_stock)
+    if not ok:
+        await cq.answer("Товар не найден.", show_alert=True)
+        return
+    rows = await db.list_product_stock()
+    await cq.message.edit_text(
+        _stock_panel_text(rows),
+        reply_markup=_stock_panel_markup(rows),
+        parse_mode=None,
+    )
+    title = MINI_APP_PRODUCT_TITLES.get(product_id, "Товар")
+    bot = getattr(cq.message, "bot", None)
+    asyncio.create_task(_publish_stock_json_in_background(bot, cq.from_user.id, title))
+    await cq.answer(
+        f"{title}: {'в наличии' if in_stock else 'нет в наличии'}. Публикация запущена."
     )
 
 
@@ -134,7 +303,7 @@ async def admin_order_decision(cq: CallbackQuery) -> None:
             return
         except Exception:
             log.exception("Не удалось обновить даже клавиатуру заказа")
-            await cq.answer("Не удалось обновить сообщение.", show_alert=True)  # plain
+            await cq.answer("Не удалось обновить сообщение.", show_alert=True)
             return
 
     await cq.answer(msg.ADMIN_SAVED_PLAIN)

@@ -128,6 +128,18 @@ def kb_promo_list(rows: list[tuple[str, int]]) -> InlineKeyboardMarkup:
     return b.as_markup()
 
 
+def kb_product_stock(rows: list[tuple[str, str, bool]]) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    for product_id, title, in_stock in rows:
+        b.row(
+            InlineKeyboardButton(
+                text=f"{'✅' if in_stock else '❌'} {title}",
+                callback_data=f"admstk:{product_id}:{0 if in_stock else 1}",
+            ),
+        )
+    return b.as_markup()
+
+
 def kb_ai_exit() -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.row(

@@ -1,9 +1,13 @@
-import aiosqlite
+import json
 from datetime import datetime, timezone
 
+import aiosqlite
+
+from catalog import MINI_APP_PRODUCTS, MINI_APP_PRODUCT_IDS
 from config import BASE_DIR
 
 DB_PATH = BASE_DIR / "data" / "broccoli.db"
+WEB_STOCK_PATH = BASE_DIR / "web" / "stock.json"
 
 STATUS_PENDING_ADMIN = "pending_admin"
 STATUS_PREPARATION = "preparation"
@@ -13,6 +17,22 @@ STATUS_CANCELLED = "cancelled"
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _default_product_stock_map() -> dict[str, bool]:
+    return {product_id: True for product_id, _ in MINI_APP_PRODUCTS}
+
+
+def _write_product_stock_file(stock_map: dict[str, bool]) -> None:
+    WEB_STOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        product_id: bool(stock_map.get(product_id, True))
+        for product_id, _ in MINI_APP_PRODUCTS
+    }
+    WEB_STOCK_PATH.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 async def _migrate_orders_status(db: aiosqlite.Connection) -> None:
@@ -84,6 +104,27 @@ async def _ensure_promocodes_table(db: aiosqlite.Connection) -> None:
     await db.commit()
 
 
+async def _ensure_product_stock_table(db: aiosqlite.Connection) -> None:
+    await db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS product_stock (
+            product_id TEXT PRIMARY KEY,
+            in_stock INTEGER NOT NULL DEFAULT 1,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    ts = _now_iso()
+    await db.executemany(
+        """
+        INSERT OR IGNORE INTO product_stock (product_id, in_stock, updated_at)
+        VALUES (?, ?, ?)
+        """,
+        [(product_id, 1, ts) for product_id, _ in MINI_APP_PRODUCTS],
+    )
+    await db.commit()
+
+
 async def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(DB_PATH) as db:
@@ -123,6 +164,8 @@ async def init_db() -> None:
         await _migrate_orders_mini_app_columns(db)
         await _migrate_orders_promo_columns(db)
         await _ensure_promocodes_table(db)
+        await _ensure_product_stock_table(db)
+    await sync_product_stock_file()
 
 
 async def upsert_user(user_id: int, username: str | None) -> None:
@@ -209,7 +252,10 @@ async def create_order_webapp(
             ),
         )
         await db.commit()
-        return int(cur.lastrowid)
+        row_id = cur.lastrowid
+        if row_id is None:
+            raise RuntimeError("create_order_webapp: lastrowid is None")
+        return int(row_id)
 
 
 def _normalize_promo_code(code: str) -> str:
@@ -325,6 +371,79 @@ async def list_promos() -> list[dict]:
     ]
 
 
+async def get_product_stock_map() -> dict[str, bool]:
+    stock_map = _default_product_stock_map()
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute("SELECT product_id, in_stock FROM product_stock")
+        rows = await cur.fetchall()
+    for row in rows:
+        product_id = str(row["product_id"] or "").strip()
+        if product_id in MINI_APP_PRODUCT_IDS:
+            stock_map[product_id] = bool(row["in_stock"])
+    return stock_map
+
+
+async def sync_product_stock_file() -> None:
+    _write_product_stock_file(await get_product_stock_map())
+
+
+async def list_product_stock() -> list[dict]:
+    stock_map = await get_product_stock_map()
+    return [
+        {
+            "id": product_id,
+            "title": title,
+            "in_stock": bool(stock_map.get(product_id, True)),
+        }
+        for product_id, title in MINI_APP_PRODUCTS
+    ]
+
+
+async def set_product_stock(product_id: str, in_stock: bool) -> bool:
+    product_id = str(product_id or "").strip()
+    if product_id not in MINI_APP_PRODUCT_IDS:
+        return False
+    ts = _now_iso()
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO product_stock (product_id, in_stock, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(product_id) DO UPDATE SET
+                in_stock = excluded.in_stock,
+                updated_at = excluded.updated_at
+            """,
+            (product_id, int(bool(in_stock)), ts),
+        )
+        await db.commit()
+    await sync_product_stock_file()
+    return True
+
+
+async def get_unavailable_product_ids(product_ids: list[str]) -> set[str]:
+    requested_ids = sorted(
+        {
+            str(product_id).strip()
+            for product_id in product_ids
+            if str(product_id).strip() in MINI_APP_PRODUCT_IDS
+        }
+    )
+    if not requested_ids:
+        return set()
+    placeholders = ", ".join("?" for _ in requested_ids)
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            f"""
+            SELECT product_id
+            FROM product_stock
+            WHERE product_id IN ({placeholders})
+              AND COALESCE(in_stock, 1) = 0
+            """,
+            tuple(requested_ids),
+        )
+        rows = await cur.fetchall()
+    return {str(row[0]) for row in rows}
 async def get_order_status(order_id: int) -> str | None:
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(
