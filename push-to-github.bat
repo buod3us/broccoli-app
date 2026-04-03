@@ -25,7 +25,7 @@ if not exist ".git" (
     echo  ПЕРВЫЙ РАЗ: создайте репозиторий на GitHub ^(без README^), затем выполните
     echo  в этой папке вручную ^(один раз^):
     echo.
-    echo    git remote add origin https://github.com/ВАШ_ЛОГИН/ВАШ_РЕПО.git
+    echo    git remote add origin https://github.com/buod3us/broccoli-app.git
     echo.
     echo  Замените URL на свой. После этого снова запустите этот bat.
     echo ------------------------------------------------------------------
@@ -36,7 +36,7 @@ git remote get-url origin >nul 2>&1
 if errorlevel 1 (
     echo [ОШИБКА] Не настроен remote "origin".
     echo Выполните в этой папке:
-    echo   git remote add origin https://github.com/ВАШ_ЛОГИН/ВАШ_РЕПО.git
+    echo   git remote add origin https://github.com/buod3us/broccoli-app.git
     pause
     exit /b 1
 )

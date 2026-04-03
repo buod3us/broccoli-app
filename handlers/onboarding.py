@@ -5,8 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 import database as db
-from config import WELCOME_IMAGE_URL
-from handlers.common import send_shop_reply_keyboard
+from config import ADMIN_ID, WELCOME_IMAGE_URL
 from keyboards import kb_goal_choice, kb_main_menu
 import messages as msg
 from media_input import answer_photo_cached, input_photo
@@ -38,10 +37,9 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
             message,
             cache_key="welcome",
             caption=msg.main_menu_caption(),
-            reply_markup=kb_main_menu(),
+            reply_markup=kb_main_menu(is_admin=user.id == ADMIN_ID),
             photo_input=photo,
         )
-        await send_shop_reply_keyboard(message)
         return
 
     await state.set_state(Onboarding.choosing_goal)
@@ -72,15 +70,13 @@ async def on_goal_chosen(cq: CallbackQuery, state: FSMContext) -> None:
         await cq.message.edit_caption(
             caption=msg.main_menu_caption(),
             parse_mode=ParseMode.MARKDOWN_V2,
-            reply_markup=kb_main_menu(),
+            reply_markup=kb_main_menu(is_admin=cq.from_user.id == ADMIN_ID),
         )
-        await send_shop_reply_keyboard(cq.message)
     except Exception:
         await answer_photo_cached(
             cq.message,
             cache_key="welcome",
             caption=msg.main_menu_caption(),
-            reply_markup=kb_main_menu(),
+            reply_markup=kb_main_menu(is_admin=cq.from_user.id == ADMIN_ID),
             photo_input=input_photo(WELCOME_IMAGE_URL, folder_key="welcome"),
         )
-        await send_shop_reply_keyboard(cq.message)

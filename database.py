@@ -444,6 +444,8 @@ async def get_unavailable_product_ids(product_ids: list[str]) -> set[str]:
         )
         rows = await cur.fetchall()
     return {str(row[0]) for row in rows}
+
+
 async def get_order_status(order_id: int) -> str | None:
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(
@@ -454,6 +456,73 @@ async def get_order_status(order_id: int) -> str | None:
         if not row:
             return None
         return str(row[0])
+
+
+async def list_orders_by_statuses(
+    statuses: list[str],
+    *,
+    limit: int = 12,
+) -> list[dict]:
+    clean_statuses = [str(status).strip() for status in statuses if str(status).strip()]
+    if not clean_statuses:
+        return []
+    placeholders = ", ".join("?" for _ in clean_statuses)
+    params = tuple(clean_statuses) + (int(limit),)
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            f"""
+            SELECT
+                o.id,
+                o.status,
+                o.goal,
+                o.city,
+                o.product,
+                o.timestamp,
+                o.phone,
+                u.username
+            FROM orders o
+            LEFT JOIN users u ON u.user_id = o.user_id
+            WHERE o.status IN ({placeholders})
+            ORDER BY o.id DESC
+            LIMIT ?
+            """,
+            params,
+        )
+        rows = await cur.fetchall()
+    return [dict(row) for row in rows]
+
+
+async def get_order_details(order_id: int) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute(
+            """
+            SELECT
+                o.id,
+                o.user_id,
+                o.product,
+                o.quantity,
+                o.city,
+                o.goal,
+                o.timestamp,
+                o.status,
+                o.phone,
+                o.comment,
+                o.address,
+                o.total_price,
+                o.promo_used,
+                o.discount_amount,
+                o.final_price,
+                u.username
+            FROM orders o
+            LEFT JOIN users u ON u.user_id = o.user_id
+            WHERE o.id = ?
+            """,
+            (order_id,),
+        )
+        row = await cur.fetchone()
+    return dict(row) if row else None
 
 
 async def try_update_order_status(order_id: int, new_status: str) -> bool:
@@ -505,3 +574,20 @@ async def orders_by_goal() -> dict[str, int]:
         )
         rows = await cur.fetchall()
     return {str(r[0]): int(r[1]) for r in rows}
+
+async def get_all_users_for_promo() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute("SELECT user_id, username FROM users")
+        rows = await cur.fetchall()
+        return [{"user_id": r["user_id"], "username": r["username"] or ""} for r in rows]
+
+async def get_user_order_summary(user_id: int) -> str:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute("SELECT product, quantity FROM orders WHERE user_id = ? AND status = ?", (user_id, STATUS_CONFIRMED))
+        rows = await cur.fetchall()
+        if not rows:
+            return "Нет завершенных заказов."
+        summary = [f"{r[0]} ({r[1]})" for r in rows]
+        return ", ".join(summary)
+ 

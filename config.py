@@ -8,6 +8,10 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+# API Key Gemini (пакет google-genai); при отсутствии подставляется GOOGLE_API_KEY (старое имя).
+GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")).strip()
+# Стабильное имя из документации Gemini API (1.5-* в v1beta часто даёт 404).
+GEMINI_MODEL = (os.getenv("GEMINI_MODEL") or "gemini-2.5-flash").strip()
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 ADMIN_ID_RAW = (os.getenv("ADMIN_ID") or "0").strip()
 

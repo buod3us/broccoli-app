@@ -7,7 +7,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from config import ADMIN_ID, BASE_DIR, GOOGLE_API_KEY, TELEGRAM_TOKEN
+from config import ADMIN_ID, BASE_DIR, GEMINI_API_KEY, TELEGRAM_TOKEN
 from database import init_db
 from handlers import setup_routers
 from handlers.ai import configure_gemini
@@ -23,7 +23,7 @@ async def _run() -> None:
         print("Отсутствует knowledge.txt", file=sys.stderr)
         raise SystemExit(1)
     knowledge = knowledge_path.read_text(encoding="utf-8")
-    configure_gemini(GOOGLE_API_KEY, knowledge)
+    configure_gemini(GEMINI_API_KEY, knowledge)
 
     await init_db()
 

@@ -11,3 +11,10 @@ class Menu(StatesGroup):
 
 class AIConsultant(StatesGroup):
     chatting = State()
+
+
+class AdminPanel(StatesGroup):
+    main = State()
+    waiting_promo_add = State()
+    waiting_promo_delete = State()
+    waiting_ai_promo_text = State()
