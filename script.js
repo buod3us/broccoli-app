@@ -115,6 +115,8 @@ const PROMO_CODES = {};
 
 let MERGED_PROMOS = {};
 
+let REMOTE_STOCK = {};
+
 let appliedPromo = null;
 
 function loadAppliedPromoState() {
@@ -262,6 +264,29 @@ function mergeRemotePromos() {
     .catch(() => {});
 }
 
+function mergeRemoteStock() {
+  REMOTE_STOCK = {};
+  return fetch(`stock.json?t=${Date.now()}`, { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : {}))
+    .then((j) => {
+      const next = {};
+      PRODUCTS.forEach((p) => {
+        next[p.id] =
+          j && typeof j === "object" && !Array.isArray(j)
+            ? j[p.id] !== false
+            : true;
+      });
+      REMOTE_STOCK = next;
+    })
+    .catch(() => {
+      REMOTE_STOCK = {};
+    });
+}
+
+function isProductInStock(id) {
+  return REMOTE_STOCK[id] !== false;
+}
+
 /** После загрузки promos.json: подставить процент или сбросить, если кода нет в списке. */
 function reconcileAppliedPromoDiscount() {
   if (!appliedPromo || !appliedPromo.code) return;
@@ -334,11 +359,54 @@ function setCartQty(id, qty) {
 }
 
 function addToCart(id) {
+  if (!isProductInStock(id)) {
+    if (tg) tg.showAlert("Этого товара сейчас нет в наличии");
+    return;
+  }
   const cart = loadCart();
   cart[id] = (Number(cart[id]) || 0) + 1;
   saveCart(cart);
   updateBadge();
   if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred("light");
+}
+
+function stockStatusHtml(p) {
+  const inStock = isProductInStock(p.id);
+  return `<div class="product-card__stock ${
+    inStock ? "product-card__stock--ok" : "product-card__stock--out"
+  }">${inStock ? "В наличии" : "Нет в наличии"}</div>`;
+}
+
+function productActionButtonHtml(p) {
+  if (!isProductInStock(p.id)) {
+    return '<button type="button" class="btn btn--disabled btn--sm btn-add" disabled>Нет</button>';
+  }
+  return `<button type="button" class="btn btn--primary btn--sm btn-add" data-id="${p.id}">+</button>`;
+}
+
+function outOfStockCartText(titles) {
+  if (!titles.length) return "";
+  if (titles.length === 1) {
+    return `Товара «${titles[0]}» сейчас нет в наличии. Мы убрали его из корзины.`;
+  }
+  return `Мы убрали из корзины товары, которых сейчас нет в наличии: ${titles.join(", ")}.`;
+}
+
+function sanitizeCartForStock() {
+  const cart = loadCart();
+  const removedTitles = [];
+  PRODUCTS.forEach((p) => {
+    if (!isProductInStock(p.id)) {
+      const qty = Number(cart[p.id]) || 0;
+      if (qty > 0) {
+        delete cart[p.id];
+        removedTitles.push(p.title);
+      }
+    }
+  });
+  if (!removedTitles.length) return [];
+  saveCart(cart);
+  return removedTitles;
 }
 
 function productImageBlock(p) {
@@ -391,15 +459,16 @@ function renderProducts() {
       ${productImageBlock(p)}
       <div class="product-card__body">
         <h3 class="product-card__title">${escapeHtml(p.title)}</h3>
+        ${stockStatusHtml(p)}
         <div class="product-card__row">
           <div class="product-card__price">${p.price} ₽</div>
-          <button type="button" class="btn btn--primary btn--sm btn-add" data-id="${p.id}">+</button>
+          ${productActionButtonHtml(p)}
         </div>
       </div>
     `;
     grid.appendChild(card);
   });
-  grid.querySelectorAll(".btn-add").forEach((btn) => {
+  grid.querySelectorAll(".btn-add[data-id]").forEach((btn) => {
     btn.addEventListener("click", () => addToCart(btn.dataset.id));
   });
 }
@@ -674,10 +743,25 @@ document.getElementById("checkout-form").addEventListener("submit", (e) => {
   e.preventDefault();
   const cart = loadCart();
   const items = [];
+  const unavailableTitles = [];
   PRODUCTS.forEach((p) => {
     const qty = Number(cart[p.id]) || 0;
-    if (qty > 0) items.push({ id: p.id, title: p.title, qty, price: p.price });
+    if (qty < 1) return;
+    if (!isProductInStock(p.id)) {
+      unavailableTitles.push(p.title);
+      return;
+    }
+    items.push({ id: p.id, title: p.title, qty, price: p.price });
   });
+  if (unavailableTitles.length) {
+    const removedTitles = sanitizeCartForStock();
+    updateBadge();
+    renderCartList();
+    const text = outOfStockCartText(removedTitles.length ? removedTitles : unavailableTitles);
+    if (tg) tg.showAlert(text);
+    else alert(text);
+    return;
+  }
   if (!items.length) {
     if (tg) tg.showAlert("Добавьте товары в корзину");
     return;
@@ -748,7 +832,8 @@ function clearCart() {
 
 async function boot() {
   appliedPromo = loadAppliedPromoState();
-  await mergeRemotePromos();
+  await Promise.all([mergeRemotePromos(), mergeRemoteStock()]);
+  const removedTitles = sanitizeCartForStock();
   reconcileAppliedPromoDiscount();
   initTheme();
   initLogo();
@@ -769,6 +854,11 @@ async function boot() {
     toggleTheme();
     if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred("light");
   });
+  if (removedTitles.length) {
+    const text = outOfStockCartText(removedTitles);
+    if (tg) tg.showAlert(text);
+    else alert(text);
+  }
   updateBadge();
   renderProfile();
   renderCartList();
