@@ -8,7 +8,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import ADMIN_ID, BASE_DIR, GEMINI_API_KEY, TELEGRAM_TOKEN
-from database import init_db
+from database import close_db, init_db
 from handlers import setup_routers
 from handlers.ai import configure_gemini
 
@@ -40,7 +40,10 @@ async def _run() -> None:
     for router in setup_routers():
         dp.include_router(router)
 
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await close_db()
 
 
 def main() -> None:

@@ -12,10 +12,11 @@ from aiogram.types import (
     InputMediaPhoto,
     InlineKeyboardButton,
     Message,
+    WebAppInfo,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from config import BASE_DIR
+from config import BASE_DIR, MINI_APP_URL
 from handlers.common import ensure_goal_chosen
 import database as db
 from md2 import escape_md2
@@ -66,7 +67,7 @@ def build_reviews_kb(*, idx: int, total: int):
     kb.row(
         InlineKeyboardButton(
             text="🛍 Перейти в магазин",
-            callback_data="menu:shop",
+            web_app=WebAppInfo(url=MINI_APP_URL),
         ),
     )
     kb.row(

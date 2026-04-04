@@ -1,9 +1,6 @@
 import logging
-import asyncio
-import os
-from pathlib import Path
 
-from aiogram import Bot, F, Router
+from aiogram import F, Router
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -11,7 +8,7 @@ from aiogram.types import CallbackQuery, Message
 
 from catalog import MINI_APP_PRODUCT_TITLES
 import database as db
-from config import ADMIN_ID, BASE_DIR, WELCOME_IMAGE_URL
+from config import ADMIN_ID, WELCOME_IMAGE_URL
 import messages as msg
 from handlers.ai import generate_ai_promo_message
 from keyboards import (
@@ -37,10 +34,6 @@ from states import AdminPanel
 log = logging.getLogger(__name__)
 
 router = Router(name="admin")
-
-_WEB_REPO_DIR = BASE_DIR / "web"
-_STOCK_REPO_FILE = Path("stock.json")
-_STOCK_PUBLISH_LOCK = asyncio.Lock()
 
 _ACTION_SUFFIX = {
     db.STATUS_CONFIRMED: (
@@ -198,6 +191,8 @@ def _panel_order_text(order: dict) -> str:
         f"📞 Телефон: {str(order.get('phone') or '—')}",
         f"📍 Город: {str(order.get('city') or '—')}",
         f"🏠 Адрес: {str(order.get('address') or '—')}",
+        f"🚚 Доставка: {str(order.get('delivery_type') or '—')}",
+        f"💳 Оплата: {str(order.get('payment') or '—')}",
         f"🧾 Товары: {str(order.get('product') or '—')}",
         f"🔢 Кол-во: {str(order.get('quantity') or '—')}",
     ]
@@ -268,103 +263,6 @@ def _parse_add_promo_payload(text: str) -> tuple[str, int, str] | None:
         return None
     name = " ".join(parts[2:]).strip() if len(parts) > 2 else ""
     return code, discount, name
-
-
-async def _run_web_git(*args: str) -> tuple[int, str]:
-    env = os.environ.copy()
-    env.setdefault("GIT_TERMINAL_PROMPT", "0")
-    env.setdefault("GCM_INTERACTIVE", "Never")
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "git",
-            *args,
-            cwd=str(_WEB_REPO_DIR),
-            env=env,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-    except FileNotFoundError as e:
-        raise RuntimeError("git не найден на сервере") from e
-    try:
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=90)
-    except asyncio.TimeoutError as e:
-        proc.kill()
-        await proc.wait()
-        raise RuntimeError(f"git {' '.join(args)} превысил таймаут 90 сек.") from e
-    text = out.decode("utf-8", errors="replace").strip()
-    return proc.returncode or 0, text
-
-
-async def _publish_stock_json() -> str:
-    async with _STOCK_PUBLISH_LOCK:
-        if not _WEB_REPO_DIR.is_dir():
-            raise RuntimeError(f"Не найдена папка репозитория: {_WEB_REPO_DIR}")
-
-        code, output = await _run_web_git("rev-parse", "--is-inside-work-tree")
-        if code != 0 or not output.endswith("true"):
-            raise RuntimeError("папка web не является git-репозиторием")
-
-        code, branch_out = await _run_web_git("rev-parse", "--abbrev-ref", "HEAD")
-        branch = branch_out.splitlines()[-1].strip() if code == 0 and branch_out.strip() else "main"
-
-        code, output = await _run_web_git("add", "--", str(_STOCK_REPO_FILE))
-        if code != 0:
-            raise RuntimeError(output or "не удалось добавить stock.json в git")
-
-        code, output = await _run_web_git("diff", "--cached", "--quiet", "--", str(_STOCK_REPO_FILE))
-        if code == 0:
-            return "no_changes"
-        if code != 1:
-            raise RuntimeError(output or "не удалось проверить изменения stock.json")
-
-        code, output = await _run_web_git(
-            "commit",
-            "--only",
-            "-m",
-            "stock: update availability",
-            "--",
-            str(_STOCK_REPO_FILE),
-        )
-        if code != 0:
-            lowered = output.lower()
-            if "nothing to commit" in lowered or "no changes added" in lowered:
-                return "no_changes"
-            raise RuntimeError(output or "не удалось создать коммит stock.json")
-
-        code, output = await _run_web_git("push", "-u", "origin", branch)
-        if code != 0:
-            raise RuntimeError(output or f"не удалось выполнить git push origin {branch}")
-        return branch
-
-
-async def _publish_stock_json_in_background(
-    bot: Bot | None,
-    chat_id: int,
-    product_title: str,
-) -> None:
-    try:
-        result = await _publish_stock_json()
-        if result == "no_changes":
-            log.info("Автопубликация stock.json пропущена: нет новых изменений")
-            return
-        log.info(
-            "Автопубликация stock.json завершена: товар=%s branch=%s",
-            product_title,
-            result,
-        )
-    except Exception as e:
-        log.exception("Автопубликация stock.json не удалась: %s", e)
-        if bot is not None:
-            await bot.send_message(
-                chat_id,
-                (
-                    "Автопубликация наличия не удалась. "
-                    f"Mini App может показывать старый статус. Ошибка: {e}"
-                ),
-                parse_mode=None,
-            )
-
-
 @router.message(Command("admin"))
 async def cmd_admin(message: Message, state: FSMContext) -> None:
     if not message.from_user or message.from_user.id != ADMIN_ID:
@@ -673,11 +571,7 @@ async def cb_stock_toggle(cq: CallbackQuery, state: FSMContext) -> None:
         parse_mode=None,
     )
     title = MINI_APP_PRODUCT_TITLES.get(product_id, "Товар")
-    bot = getattr(cq.message, "bot", None)
-    asyncio.create_task(_publish_stock_json_in_background(bot, cq.from_user.id, title))
-    await cq.answer(
-        f"{title}: {'в наличии' if in_stock else 'нет в наличии'}. Публикация запущена."
-    )
+    await cq.answer(f"{title}: {'в наличии' if in_stock else 'нет в наличии'}.")
 
 
 @router.callback_query(F.data.startswith("admord:"))

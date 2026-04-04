@@ -1,8 +1,6 @@
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    KeyboardButton,
-    ReplyKeyboardMarkup,
     WebAppInfo,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -24,20 +22,6 @@ def kb_goal_choice() -> InlineKeyboardMarkup:
     )
     return b.as_markup()
 
-
-def kb_reply_shop_webapp() -> ReplyKeyboardMarkup:
-    """
-    Mini App с этой клавиатуры поддерживает Telegram.WebApp.sendData().
-    Inline-кнопка web_app sendData НЕ поддерживает (см. документацию Telegram).
-    """
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="🛍 Магазин", web_app=WebAppInfo(url=MINI_APP_URL))],
-        ],
-        resize_keyboard=True,
-    )
-
-
 def kb_main_menu(*, is_admin: bool = False) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
     b.row(
@@ -49,7 +33,7 @@ def kb_main_menu(*, is_admin: bool = False) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🤖 ИИ-Консультант", callback_data="menu:ai"),
     )
     b.row(
-        InlineKeyboardButton(text="🛍 Магазин", callback_data="menu:shop"),
+        InlineKeyboardButton(text="🛍 Магазин", web_app=WebAppInfo(url=MINI_APP_URL)),
     )
     if is_admin:
         b.row(

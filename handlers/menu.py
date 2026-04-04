@@ -7,7 +7,7 @@ from aiogram.types import CallbackQuery, FSInputFile
 
 from certificate_files import list_certificate_pdfs
 from config import ADMIN_ID, WELCOME_IMAGE_URL
-from handlers.common import ensure_goal_chosen, send_shop_reply_keyboard
+from handlers.common import ensure_goal_chosen
 import messages as msg
 from keyboards import kb_main_menu
 from media_input import (
@@ -19,19 +19,6 @@ from states import Menu
 
 router = Router(name="menu")
 log = logging.getLogger(__name__)
-
-
-@router.callback_query(F.data == "menu:shop")
-async def menu_shop(cq: CallbackQuery, state: FSMContext) -> None:
-    """Инлайн «Магазин» — показывает reply\\-клавиатуру с Web App \\(sendData\\)."""
-    if not cq.from_user or not cq.message:
-        await cq.answer()
-        return
-    if not await ensure_goal_chosen(cq.from_user.id, cq):
-        return
-    await state.set_state(Menu.main)
-    await cq.answer("Ниже появилась кнопка «Магазин»", show_alert=False)
-    await send_shop_reply_keyboard(cq.message)
 
 
 @router.callback_query(F.data == "menu:main")
@@ -109,6 +96,6 @@ async def menu_delivery(cq: CallbackQuery, state: FSMContext) -> None:
             )
     except Exception as e:
         if "message is not modified" in str(e):
-            pass # Игнорируем ошибку, так как кнопка уже нажата
+            pass
         else:
             log.exception("Error in menu_delivery")
