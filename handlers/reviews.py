@@ -214,6 +214,6 @@ async def nav_reviews(cq: CallbackQuery, state: FSMContext) -> None:
     )
     kb = build_reviews_kb(idx=new_idx, total=total)
 
-    await cq.message.edit_media(media=media, reply_markup=kb)
     await cq.answer()
+    await cq.message.edit_media(media=media, reply_markup=kb)
 

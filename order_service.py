@@ -318,6 +318,7 @@ async def process_order_payload(
 
     user_message = msg.order_accepted_plain(city)
     if not admin_ok:
+        log.warning("Заказ #%s сохранён, но уведомление админу не отправлено.", order_id)
         user_message = f"{user_message}\n\n{msg.ORDER_ADMIN_NOTIFY_FAILED_PLAIN}"
 
     if bot is not None and notify_user:

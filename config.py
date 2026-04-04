@@ -37,6 +37,9 @@ def _url_origin(url: str) -> str:
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
 DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
+BOT_RUN_MODE = (os.getenv("BOT_RUN_MODE") or "polling").strip().lower()
+if BOT_RUN_MODE not in {"polling", "webhook"}:
+    BOT_RUN_MODE = "polling"
 # API Key Gemini (пакет google-genai); при отсутствии подставляется GOOGLE_API_KEY (старое имя).
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")).strip()
 # Стабильное имя из документации Gemini API (1.5-* в v1beta часто даёт 404).
@@ -68,6 +71,13 @@ API_PORT = _int_env("API_PORT", 8000)
 API_BASE_URL = (
     os.getenv("API_BASE_URL") or f"http://127.0.0.1:{API_PORT}"
 ).strip().rstrip("/")
+WEBHOOK_PATH = (os.getenv("WEBHOOK_PATH") or "/telegram/webhook").strip() or "/telegram/webhook"
+if not WEBHOOK_PATH.startswith("/"):
+    WEBHOOK_PATH = f"/{WEBHOOK_PATH}"
+WEBHOOK_PATH = WEBHOOK_PATH.rstrip("/") or "/telegram/webhook"
+WEBHOOK_BASE_URL = (os.getenv("WEBHOOK_BASE_URL") or API_BASE_URL).strip().rstrip("/")
+WEBHOOK_URL = f"{WEBHOOK_BASE_URL}{WEBHOOK_PATH}" if WEBHOOK_BASE_URL else ""
+WEBHOOK_SECRET_TOKEN = (os.getenv("WEBHOOK_SECRET_TOKEN") or "").strip()
 
 _default_api_cors_origins: list[str] = []
 _mini_app_origin = _url_origin(MINI_APP_URL)

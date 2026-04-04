@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from aiogram import F, Router
@@ -244,12 +245,12 @@ async def _edit_admin_panel(
         await cq.answer()
         return
     await state.set_state(AdminPanel.main)
+    await cq.answer()
     try:
         await cq.message.edit_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
     except Exception as e:
         if "message is not modified" not in str(e).lower():
             log.exception("Не удалось обновить админ-панель: %s", e)
-    await cq.answer()
 
 
 def _parse_add_promo_payload(text: str) -> tuple[str, int, str] | None:
@@ -424,12 +425,12 @@ async def cb_admin_panel_promo_add(cq: CallbackQuery, state: FSMContext) -> None
         await cq.answer()
         return
     await state.set_state(AdminPanel.waiting_promo_add)
+    await cq.answer()
     await cq.message.edit_text(
         _promo_add_prompt_text(),
         reply_markup=kb_admin_panel_cancel("admp:promo"),
         parse_mode=None,
     )
-    await cq.answer()
 
 
 @router.callback_query(F.data == "admp:promo:del")
@@ -441,12 +442,12 @@ async def cb_admin_panel_promo_delete(cq: CallbackQuery, state: FSMContext) -> N
         await cq.answer()
         return
     await state.set_state(AdminPanel.waiting_promo_delete)
+    await cq.answer()
     await cq.message.edit_text(
         _promo_delete_prompt_text(),
         reply_markup=kb_admin_panel_cancel("admp:promo"),
         parse_mode=None,
     )
-    await cq.answer()
 
 
 @router.callback_query(F.data == "admp:stats")
@@ -491,12 +492,12 @@ async def cb_admin_panel_broadcast_start(cq: CallbackQuery, state: FSMContext) -
         await cq.answer()
         return
     await state.set_state(AdminPanel.waiting_ai_promo_text)
+    await cq.answer()
     await cq.message.edit_text(
         _broadcast_prompt_text(),
         reply_markup=kb_admin_panel_cancel("admp:broadcast"),
         parse_mode=None,
     )
-    await cq.answer()
 
 
 @router.message(Command("stats"))

@@ -1,11 +1,8 @@
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    WebAppInfo,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-
-from config import MINI_APP_URL
 
 
 def kb_goal_choice() -> InlineKeyboardMarkup:
@@ -31,9 +28,6 @@ def kb_main_menu(*, is_admin: bool = False) -> InlineKeyboardMarkup:
     b.row(
         InlineKeyboardButton(text="🚛 Доставка", callback_data="menu:delivery"),
         InlineKeyboardButton(text="🤖 ИИ-Консультант", callback_data="menu:ai"),
-    )
-    b.row(
-        InlineKeyboardButton(text="🛍 Магазин", web_app=WebAppInfo(url=MINI_APP_URL)),
     )
     if is_admin:
         b.row(

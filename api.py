@@ -1,18 +1,36 @@
+import logging
 from contextlib import asynccontextmanager
 
-from aiogram import Bot
-from fastapi import FastAPI, HTTPException
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+from aiogram.fsm.storage.memory import MemoryStorage
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import database as db
 from catalog import MINI_APP_CATEGORIES, MINI_APP_PRODUCT_CATALOG
-from config import API_CORS_ORIGINS, API_HOST, API_PORT, BASE_DIR, TELEGRAM_TOKEN
+from config import (
+    API_CORS_ORIGINS,
+    API_HOST,
+    API_PORT,
+    BASE_DIR,
+    BOT_RUN_MODE,
+    GEMINI_API_KEY,
+    TELEGRAM_TOKEN,
+    WEBHOOK_PATH,
+    WEBHOOK_SECRET_TOKEN,
+    WEBHOOK_URL,
+)
+from handlers import setup_routers
+from handlers.ai import configure_gemini
 from order_service import OrderProcessingError, process_order_payload
 from telegram_webapp import TelegramInitDataError, validate_telegram_init_data
 
 WEB_DIR = BASE_DIR / "web"
+log = logging.getLogger(__name__)
 
 
 class OrderItemPayload(BaseModel):
@@ -54,10 +72,61 @@ def _public_promos_payload(rows: list[dict]) -> dict[str, int]:
     return payload
 
 
+def _build_dispatcher() -> Dispatcher:
+    dp = Dispatcher(storage=MemoryStorage())
+    for router in setup_routers():
+        dp.include_router(router)
+    return dp
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    app.state.bot = None
+    app.state.bot_id = 0
+    app.state.bot_username = ""
+    app.state.bot_mode = BOT_RUN_MODE
+    app.state.dp = None
     await db.init_db()
-    bot = Bot(token=TELEGRAM_TOKEN) if TELEGRAM_TOKEN.strip() else None
+    if BOT_RUN_MODE == "webhook" and not TELEGRAM_TOKEN.strip():
+        raise RuntimeError("BOT_RUN_MODE=webhook требует TELEGRAM_TOKEN.")
+    if BOT_RUN_MODE == "webhook" and (not WEBHOOK_URL or not WEBHOOK_URL.startswith("https://")):
+        raise RuntimeError("BOT_RUN_MODE=webhook требует корректный HTTPS WEBHOOK_URL/WEBHOOK_BASE_URL.")
+
+    bot = None
+    if TELEGRAM_TOKEN.strip():
+        bot = Bot(
+            token=TELEGRAM_TOKEN,
+            default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2),
+        )
+    if bot is not None:
+        try:
+            me = await bot.get_me()
+        except Exception as e:
+            log.warning("API bot self-check failed: %s", e)
+        else:
+            app.state.bot_id = int(me.id)
+            app.state.bot_username = str(me.username or "").strip()
+            log.info(
+                "API bot configured as @%s (%s)",
+                app.state.bot_username or "unknown",
+                app.state.bot_id,
+            )
+        if BOT_RUN_MODE == "webhook":
+            knowledge_path = BASE_DIR / "knowledge.txt"
+            if not knowledge_path.is_file():
+                raise RuntimeError("Для webhook-режима отсутствует knowledge.txt.")
+            configure_gemini(GEMINI_API_KEY, knowledge_path.read_text(encoding="utf-8"))
+            dp = _build_dispatcher()
+            await bot.set_webhook(
+                WEBHOOK_URL,
+                secret_token=WEBHOOK_SECRET_TOKEN or None,
+                allowed_updates=dp.resolve_used_update_types(),
+                drop_pending_updates=False,
+            )
+            app.state.dp = dp
+            log.info("Telegram webhook configured: %s", WEBHOOK_URL)
+    else:
+        log.warning("API started without TELEGRAM_TOKEN — order creation will be unavailable.")
     app.state.bot = bot
     try:
         yield
@@ -90,6 +159,8 @@ async def root() -> dict[str, object]:
         "ok": True,
         "cors_origins": API_CORS_ORIGINS,
         "mini_app_path": "/app/",
+        "bot_mode": BOT_RUN_MODE,
+        "webhook_path": WEBHOOK_PATH if BOT_RUN_MODE == "webhook" else "",
     }
 
 
@@ -98,7 +169,36 @@ async def healthz() -> dict[str, object]:
     ok = await db.ping_db()
     if not ok:
         raise HTTPException(status_code=503, detail="Database ping failed.")
-    return {"ok": True, "db": db.backend_name()}
+    return {
+        "ok": True,
+        "db": db.backend_name(),
+        "bot_username": getattr(app.state, "bot_username", ""),
+        "bot_id": getattr(app.state, "bot_id", 0),
+        "bot_mode": getattr(app.state, "bot_mode", "polling"),
+        "webhook_url": WEBHOOK_URL if BOT_RUN_MODE == "webhook" else "",
+    }
+
+
+@app.post(WEBHOOK_PATH)
+async def telegram_webhook(request: Request) -> Response:
+    if BOT_RUN_MODE != "webhook":
+        raise HTTPException(status_code=503, detail="Webhook mode is disabled.")
+
+    bot = getattr(app.state, "bot", None)
+    dp = getattr(app.state, "dp", None)
+    if bot is None or dp is None:
+        raise HTTPException(status_code=503, detail="Webhook bot runtime is not ready.")
+
+    if WEBHOOK_SECRET_TOKEN:
+        provided_secret = (request.headers.get("X-Telegram-Bot-Api-Secret-Token") or "").strip()
+        if provided_secret != WEBHOOK_SECRET_TOKEN:
+            raise HTTPException(status_code=403, detail="Invalid Telegram webhook secret.")
+
+    update = await request.json()
+    result = await dp.feed_webhook_update(bot, update)
+    if result is not None:
+        await dp.silent_call_request(bot=bot, result=result)
+    return Response(status_code=200)
 
 
 @app.get("/api/catalog")
@@ -117,13 +217,19 @@ async def api_promos() -> dict[str, int]:
 
 
 @app.post("/api/orders")
-async def api_create_order(payload: CreateOrderPayload) -> dict[str, object]:
+async def api_create_order(payload: CreateOrderPayload, request: Request) -> dict[str, object]:
     if not TELEGRAM_TOKEN.strip():
         raise HTTPException(status_code=503, detail="На сервере не задан TELEGRAM_TOKEN.")
 
     try:
         init_data = validate_telegram_init_data(payload.init_data, TELEGRAM_TOKEN)
     except TelegramInitDataError as e:
+        log.warning(
+            "Order initData rejected: %s origin=%s referer=%s",
+            e,
+            request.headers.get("origin", "") or "-",
+            request.headers.get("referer", "") or "-",
+        )
         raise HTTPException(status_code=401, detail=str(e)) from e
 
     body = payload.model_dump(mode="python")
@@ -137,7 +243,20 @@ async def api_create_order(payload: CreateOrderPayload) -> dict[str, object]:
             notify_user=True,
         )
     except OrderProcessingError as e:
+        log.warning(
+            "Order rejected user_id=%s username=%s: %s",
+            init_data.user_id,
+            init_data.username or "-",
+            e,
+        )
         raise HTTPException(status_code=400, detail=e.public_message) from e
+
+    if not result.admin_notified:
+        log.warning(
+            "Order accepted but admin notification failed order_id=%s user_id=%s",
+            result.order_id,
+            init_data.user_id,
+        )
 
     return {
         "ok": True,
