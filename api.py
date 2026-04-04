@@ -1,5 +1,6 @@
+import asyncio
 import logging
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -79,6 +80,42 @@ def _build_dispatcher() -> Dispatcher:
     return dp
 
 
+async def _configure_webhook(bot: Bot, allowed_updates: list[str]) -> None:
+    retry_delays = (0, 3, 10, 30)
+    attempts = len(retry_delays)
+    for attempt, delay in enumerate(retry_delays, start=1):
+        if delay:
+            await asyncio.sleep(delay)
+        try:
+            await bot.set_webhook(
+                WEBHOOK_URL,
+                secret_token=WEBHOOK_SECRET_TOKEN or None,
+                allowed_updates=allowed_updates,
+                drop_pending_updates=False,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            if attempt == attempts:
+                log.exception(
+                    "Telegram webhook setup failed after %s attempts for %s",
+                    attempts,
+                    WEBHOOK_URL,
+                )
+                return
+            log.warning(
+                "Telegram webhook setup failed on attempt %s/%s for %s; retrying in %ss",
+                attempt,
+                attempts,
+                WEBHOOK_URL,
+                retry_delays[attempt],
+                exc_info=True,
+            )
+        else:
+            log.info("Telegram webhook configured: %s", WEBHOOK_URL)
+            return
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.bot = None
@@ -86,51 +123,56 @@ async def lifespan(app: FastAPI):
     app.state.bot_username = ""
     app.state.bot_mode = BOT_RUN_MODE
     app.state.dp = None
-    await db.init_db()
-    if BOT_RUN_MODE == "webhook" and not TELEGRAM_TOKEN.strip():
-        raise RuntimeError("BOT_RUN_MODE=webhook требует TELEGRAM_TOKEN.")
-    if BOT_RUN_MODE == "webhook" and (not WEBHOOK_URL or not WEBHOOK_URL.startswith("https://")):
-        raise RuntimeError("BOT_RUN_MODE=webhook требует корректный HTTPS WEBHOOK_URL/WEBHOOK_BASE_URL.")
-
+    app.state.webhook_task = None
     bot = None
-    if TELEGRAM_TOKEN.strip():
-        bot = Bot(
-            token=TELEGRAM_TOKEN,
-            default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2),
-        )
-    if bot is not None:
-        try:
-            me = await bot.get_me()
-        except Exception as e:
-            log.warning("API bot self-check failed: %s", e)
-        else:
-            app.state.bot_id = int(me.id)
-            app.state.bot_username = str(me.username or "").strip()
-            log.info(
-                "API bot configured as @%s (%s)",
-                app.state.bot_username or "unknown",
-                app.state.bot_id,
-            )
-        if BOT_RUN_MODE == "webhook":
-            knowledge_path = BASE_DIR / "knowledge.txt"
-            if not knowledge_path.is_file():
-                raise RuntimeError("Для webhook-режима отсутствует knowledge.txt.")
-            configure_gemini(GEMINI_API_KEY, knowledge_path.read_text(encoding="utf-8"))
-            dp = _build_dispatcher()
-            await bot.set_webhook(
-                WEBHOOK_URL,
-                secret_token=WEBHOOK_SECRET_TOKEN or None,
-                allowed_updates=dp.resolve_used_update_types(),
-                drop_pending_updates=False,
-            )
-            app.state.dp = dp
-            log.info("Telegram webhook configured: %s", WEBHOOK_URL)
-    else:
-        log.warning("API started without TELEGRAM_TOKEN — order creation will be unavailable.")
-    app.state.bot = bot
     try:
+        await db.init_db()
+        if BOT_RUN_MODE == "webhook" and not TELEGRAM_TOKEN.strip():
+            raise RuntimeError("BOT_RUN_MODE=webhook требует TELEGRAM_TOKEN.")
+        if BOT_RUN_MODE == "webhook" and (not WEBHOOK_URL or not WEBHOOK_URL.startswith("https://")):
+            raise RuntimeError("BOT_RUN_MODE=webhook требует корректный HTTPS WEBHOOK_URL/WEBHOOK_BASE_URL.")
+
+        if TELEGRAM_TOKEN.strip():
+            bot = Bot(
+                token=TELEGRAM_TOKEN,
+                default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2),
+            )
+        if bot is not None:
+            try:
+                me = await bot.get_me()
+            except Exception as e:
+                log.warning("API bot self-check failed: %s", e)
+            else:
+                app.state.bot_id = int(me.id)
+                app.state.bot_username = str(me.username or "").strip()
+                log.info(
+                    "API bot configured as @%s (%s)",
+                    app.state.bot_username or "unknown",
+                    app.state.bot_id,
+                )
+            if BOT_RUN_MODE == "webhook":
+                knowledge_path = BASE_DIR / "knowledge.txt"
+                if not knowledge_path.is_file():
+                    raise RuntimeError("Для webhook-режима отсутствует knowledge.txt.")
+                configure_gemini(GEMINI_API_KEY, knowledge_path.read_text(encoding="utf-8"))
+                dp = _build_dispatcher()
+                app.state.dp = dp
+                app.state.webhook_task = asyncio.create_task(
+                    _configure_webhook(
+                        bot,
+                        dp.resolve_used_update_types(),
+                    )
+                )
+        else:
+            log.warning("API started without TELEGRAM_TOKEN — order creation will be unavailable.")
+        app.state.bot = bot
         yield
     finally:
+        webhook_task = getattr(app.state, "webhook_task", None)
+        if webhook_task is not None:
+            webhook_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await webhook_task
         if bot is not None:
             await bot.session.close()
         await db.close_db()
