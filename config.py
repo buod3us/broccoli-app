@@ -59,10 +59,10 @@ DEFAULT_WELCOME_URL = (
 )
 WELCOME_IMAGE_URL = os.getenv("WELCOME_IMAGE_URL", DEFAULT_WELCOME_URL)
 
-# URL Mini App (HTTPS). Приложение в подпапке web/ на GitHub Pages.
+# URL Mini App (HTTPS). Для GitHub Pages используется корень /broccoli-app/.
 MINI_APP_URL = os.getenv(
     "MINI_APP_URL",
-    "https://buod3us.github.io/broccoli-app/web/",
+    "https://buod3us.github.io/broccoli-app/",
 )
 
 # Базовые настройки API: это отдельный HTTPS-сервис для Mini App.
