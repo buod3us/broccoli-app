@@ -1,68 +1,21 @@
 /**
  * Mini App «Бро Кколи» — id товаров = catalog.MINI_APP_PRODUCT_IDS в боте.
- * Открывайте через reply-кнопку «Магазин», иначе sendData недоступен.
+ * Каталог, остатки и промокоды загружаются с backend API.
  *
  * --- Свои картинки ---
  * Положите файлы в папку web/images/ рядом с index.html:
  *   images/logo.png          — логотип (квадрат ~256×256, PNG или JPG)
- *   images/products/<id>.jpg — фото товара; <id> как в поле id ниже (например buckwheat_chicken.jpg)
+ *   images/products/<id>.jpg — фото товара; путь image приходит из API каталога
  * Если файла нет, покажется эмодзи из поля emoji.
- *
- * Промокод «Применить»: только коды из web/promos.json и PROMO_CODES (MERGED_PROMOS).
- * Иначе — ошибка «не найден». Бот при оформлении сверяет код с БД.
  */
 
-const PRODUCTS = [
-  {
-    id: "buckwheat_chicken",
-    title: "Гречка с курицей",
-    categoryId: "chicken",
-    emoji: "🍲",
-    price: 350,
-    image: "images/products/buckwheat_chicken.jpg",
-  },
-  {
-    id: "rice_chicken",
-    title: "Рис с курицей",
-    categoryId: "chicken",
-    emoji: "🍛",
-    price: 350,
-    image: "images/products/rice_chicken.jpg",
-  },
-  {
-    id: "beef_buckwheat",
-    title: "Гречка с говядиной",
-    categoryId: "beef",
-    emoji: "🥩",
-    price: 350,
-    image: "images/products/beef_buckwheat.jpg",
-  },
-  {
-    id: "chicken_soup",
-    title: "Куриный суп",
-    categoryId: "soup",
-    emoji: "🥣",
-    price: 250,
-    image: "images/products/chicken_soup.jpg",
-  },
-  {
-    id: "beef_soup",
-    title: "Говяжий бульон",
-    categoryId: "soup",
-    emoji: "🍲",
-    price: 280,
-    image: "images/products/beef_soup.jpg",
-  },
-];
+const APP_CONFIG = window.BROCCOLI_CONFIG || {};
 
-const CATEGORIES = [
-  { id: "all", title: "Все товары" },
-  { id: "chicken", title: "С курицей" },
-  { id: "beef", title: "С говядиной" },
-  { id: "soup", title: "Супы" },
-];
+let PRODUCTS = [];
+let CATEGORIES = [{ id: "all", title: "Все товары" }];
 
 let currentCategory = "all";
+let catalogLoadError = "";
 
 /** Слайды: лёгкий светлый тон поверх фото (слабый градиент) */
 const BANNERS_LIGHT = [
@@ -110,7 +63,7 @@ const CART_KEY = "broccoli_cart_v1";
 const THEME_KEY = "broccoli_theme";
 const PROMO_KEY = "broccoli_promo_v1";
 
-/** Дублируйте сюда коды из бота или правьте promos.json при деплое */
+/** Локальные коды для ручной разработки; в проде основной источник — API. */
 const PROMO_CODES = {};
 
 let MERGED_PROMOS = {};
@@ -140,6 +93,105 @@ const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) {
   tg.ready();
   tg.expand();
+}
+
+function trimTrailingSlash(value) {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function getApiBaseUrl() {
+  const configured = trimTrailingSlash(APP_CONFIG.apiBaseUrl || "");
+  if (configured) return configured;
+  return trimTrailingSlash(window.location.origin || "");
+}
+
+const API_BASE_URL = getApiBaseUrl();
+
+function apiUrl(path) {
+  const suffix = String(path || "").trim();
+  if (!suffix) return API_BASE_URL;
+  return suffix.startsWith("/") ? `${API_BASE_URL}${suffix}` : `${API_BASE_URL}/${suffix}`;
+}
+
+async function apiFetchJson(path, init = {}) {
+  const requestInit = {
+    cache: "no-store",
+    ...init,
+  };
+  if (init.headers) {
+    requestInit.headers = { ...init.headers };
+  }
+  const response = await fetch(apiUrl(path), requestInit);
+  const rawText = await response.text();
+  let payload = null;
+  if (rawText) {
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      payload = rawText;
+    }
+  }
+  if (!response.ok) {
+    let message = "Ошибка запроса к серверу.";
+    if (payload && typeof payload === "object" && typeof payload.detail === "string") {
+      message = payload.detail.trim() || message;
+    } else if (typeof payload === "string") {
+      message = payload.trim() || message;
+    }
+    throw new Error(message);
+  }
+  return payload;
+}
+
+function showUiAlert(message, callback) {
+  const text = String(message || "");
+  if (tg && typeof tg.showAlert === "function") {
+    tg.showAlert(text, callback);
+    return;
+  }
+  alert(text);
+  if (typeof callback === "function") callback();
+}
+
+function setSubmitBusy(isBusy) {
+  const btn = document.getElementById("btn-submit");
+  if (!btn) return;
+  btn.disabled = Boolean(isBusy);
+  btn.textContent = isBusy ? "Отправляем..." : "Оформить заказ";
+}
+
+async function loadRemoteCatalog() {
+  const data = await apiFetchJson("/api/catalog");
+  const rawItems = Array.isArray(data && data.items) ? data.items : [];
+  const rawCategories = Array.isArray(data && data.categories) ? data.categories : [];
+  const items = rawItems
+    .map((item) => ({
+      id: String(item && item.id ? item.id : "").trim(),
+      title: String(item && item.title ? item.title : "").trim(),
+      categoryId: String(item && item.categoryId ? item.categoryId : "all").trim() || "all",
+      emoji: String(item && item.emoji ? item.emoji : "🥦"),
+      price: Math.max(0, Math.round(Number(item && item.price ? item.price : 0) || 0)),
+      image: String(item && item.image ? item.image : "").trim(),
+    }))
+    .filter((item) => item.id && item.title);
+  if (!items.length) {
+    throw new Error("Каталог магазина пуст или не загружен.");
+  }
+  let categories = rawCategories
+    .map((item) => ({
+      id: String(item && item.id ? item.id : "").trim(),
+      title: String(item && item.title ? item.title : "").trim(),
+    }))
+    .filter((item) => item.id && item.title);
+  if (!categories.some((item) => item.id === "all")) {
+    categories = [{ id: "all", title: "Все товары" }, ...categories];
+  }
+  PRODUCTS = items;
+  CATEGORIES = categories;
+  if (!CATEGORIES.some((item) => item.id === currentCategory)) {
+    currentCategory = "all";
+  }
+  catalogLoadError = "";
 }
 
 let sliderIntervalId = null;
@@ -249,8 +301,7 @@ function updateBadge() {
 
 function mergeRemotePromos() {
   MERGED_PROMOS = { ...PROMO_CODES };
-  return fetch("promos.json?v=20", { cache: "no-store" })
-    .then((r) => (r.ok ? r.json() : {}))
+  return apiFetchJson("/api/promos")
     .then((j) => {
       if (j && typeof j === "object" && !Array.isArray(j)) {
         for (const [k, v] of Object.entries(j)) {
@@ -261,13 +312,14 @@ function mergeRemotePromos() {
         }
       }
     })
-    .catch(() => {});
+    .catch((err) => {
+      console.warn("promo-load", err);
+    });
 }
 
 function mergeRemoteStock() {
   REMOTE_STOCK = {};
-  return fetch(`stock.json?t=${Date.now()}`, { cache: "no-store" })
-    .then((r) => (r.ok ? r.json() : {}))
+  return apiFetchJson("/api/stock")
     .then((j) => {
       const next = {};
       PRODUCTS.forEach((p) => {
@@ -287,7 +339,7 @@ function isProductInStock(id) {
   return REMOTE_STOCK[id] !== false;
 }
 
-/** После загрузки promos.json: подставить процент или сбросить, если кода нет в списке. */
+/** После загрузки промокодов из API: подставить процент или сбросить, если кода нет в списке. */
 function reconcileAppliedPromoDiscount() {
   if (!appliedPromo || !appliedPromo.code) return;
   const key = String(appliedPromo.code).toUpperCase();
@@ -446,11 +498,20 @@ function renderProducts() {
   const grid = document.getElementById("products-grid");
   if (!grid) return;
   grid.innerHTML = "";
+  if (!PRODUCTS.length) {
+    grid.innerHTML = `<p class="cart-empty">${escapeHtml(catalogLoadError || "Каталог загружается...")}</p>`;
+    return;
+  }
   
   // Фильтрация товаров по категории
   const filteredProducts = PRODUCTS.filter(p => 
     currentCategory === "all" || p.categoryId === currentCategory
   );
+
+  if (!filteredProducts.length) {
+    grid.innerHTML = '<p class="cart-empty">В этой категории пока нет товаров.</p>';
+    return;
+  }
 
   filteredProducts.forEach((p) => {
     const card = document.createElement("article");
@@ -739,7 +800,7 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => showPage(btn.dataset.page));
 });
 
-document.getElementById("checkout-form").addEventListener("submit", (e) => {
+document.getElementById("checkout-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const cart = loadCart();
   const items = [];
@@ -799,25 +860,44 @@ document.getElementById("checkout-form").addEventListener("submit", (e) => {
     final_price: totals.final,
   };
   if (payload.city.length < 2 || payload.phone.length < 5 || payload.address.length < 3) {
-    if (tg) tg.showAlert("Укажите город, адрес и телефон");
+    showUiAlert("Укажите город, адрес и телефон");
     return;
   }
-  if (!tg) {
-    console.log("payload", payload);
-    alert("Telegram WebApp недоступен (откройте из бота)");
+  if (!tg || !tg.initData) {
+    showUiAlert("Откройте магазин из Telegram-бота, чтобы оформить заказ.");
     return;
   }
+
+  payload.init_data = tg.initData;
+  setSubmitBusy(true);
   try {
-    tg.sendData(JSON.stringify(payload));
+    const response = await apiFetchJson("/api/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
     localStorage.removeItem(CART_KEY);
     localStorage.removeItem(PROMO_KEY);
     appliedPromo = null;
     updateBadge();
     renderCartList();
-    if (tg.close) tg.close();
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    showUiAlert(
+      response && typeof response.message === "string"
+        ? response.message
+        : "Ваш заказ принят.",
+      () => {
+        if (tg && tg.close) tg.close();
+      },
+    );
   } catch (err) {
     console.error(err);
-    tg.showAlert("Не удалось отправить заказ");
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("error");
+    showUiAlert(err instanceof Error ? err.message : "Не удалось отправить заказ");
+  } finally {
+    setSubmitBusy(false);
   }
 });
 
@@ -832,7 +912,13 @@ function clearCart() {
 
 async function boot() {
   appliedPromo = loadAppliedPromoState();
-  await Promise.all([mergeRemotePromos(), mergeRemoteStock()]);
+  try {
+    await loadRemoteCatalog();
+    await Promise.all([mergeRemotePromos(), mergeRemoteStock()]);
+  } catch (err) {
+    console.error(err);
+    catalogLoadError = err instanceof Error ? err.message : "Не удалось загрузить магазин.";
+  }
   const removedTitles = sanitizeCartForStock();
   reconcileAppliedPromoDiscount();
   initTheme();
@@ -863,6 +949,9 @@ async function boot() {
   renderProfile();
   renderCartList();
   showPage("home");
+  if (catalogLoadError) {
+    showUiAlert(`${catalogLoadError} Проверьте настройки API и откройте магазин снова.`);
+  }
 }
 
 boot();
