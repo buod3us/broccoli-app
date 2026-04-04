@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from contextlib import asynccontextmanager, suppress
 
 from aiogram import Bot, Dispatcher
@@ -32,6 +33,22 @@ from telegram_webapp import TelegramInitDataError, validate_telegram_init_data
 
 WEB_DIR = BASE_DIR / "web"
 log = logging.getLogger(__name__)
+_VALID_WEBHOOK_SECRET_RE = re.compile(r"^[A-Za-z0-9_-]{1,256}$")
+
+
+def _resolve_webhook_secret_token() -> str | None:
+    token = WEBHOOK_SECRET_TOKEN.strip()
+    if not token:
+        return None
+    if not _VALID_WEBHOOK_SECRET_RE.fullmatch(token):
+        log.warning(
+            "WEBHOOK_SECRET_TOKEN contains unsupported Telegram characters; webhook secret disabled."
+        )
+        return None
+    return token
+
+
+_WEBHOOK_SECRET_TOKEN = _resolve_webhook_secret_token()
 
 
 class OrderItemPayload(BaseModel):
@@ -89,7 +106,7 @@ async def _configure_webhook(bot: Bot, allowed_updates: list[str]) -> None:
         try:
             await bot.set_webhook(
                 WEBHOOK_URL,
-                secret_token=WEBHOOK_SECRET_TOKEN or None,
+                secret_token=_WEBHOOK_SECRET_TOKEN,
                 allowed_updates=allowed_updates,
                 drop_pending_updates=False,
             )
@@ -231,9 +248,9 @@ async def telegram_webhook(request: Request) -> Response:
     if bot is None or dp is None:
         raise HTTPException(status_code=503, detail="Webhook bot runtime is not ready.")
 
-    if WEBHOOK_SECRET_TOKEN:
+    if _WEBHOOK_SECRET_TOKEN is not None:
         provided_secret = (request.headers.get("X-Telegram-Bot-Api-Secret-Token") or "").strip()
-        if provided_secret != WEBHOOK_SECRET_TOKEN:
+        if provided_secret != _WEBHOOK_SECRET_TOKEN:
             raise HTTPException(status_code=403, detail="Invalid Telegram webhook secret.")
 
     update = await request.json()
