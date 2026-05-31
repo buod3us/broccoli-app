@@ -199,14 +199,14 @@ def _panel_order_text(order: dict) -> str:
     ]
     if promo_used:
         lines.append(f"🎟 Промокод: {promo_used}")
-        lines.append(f"💸 Скидка: {str(order.get('discount_amount') or '0')} ₽")
+        lines.append(f"💸 Скидка: {str(order.get('discount_amount') or '0')} тг")
         lines.append(
             "💰 К оплате: "
-            f"{str(order.get('final_price') or order.get('total_price') or '0')} ₽ "
-            f"(без скидки: {str(order.get('total_price') or '0')} ₽)"
+            f"{str(order.get('final_price') or order.get('total_price') or '0')} тг "
+            f"(без скидки: {str(order.get('total_price') or '0')} тг)"
         )
     else:
-        lines.append(f"💰 Сумма: {str(order.get('total_price') or '0')} ₽")
+        lines.append(f"💰 Сумма: {str(order.get('total_price') or '0')} тг")
     lines.append(f"💬 Комментарий: {comment}")
     return "\n".join(lines)
 
@@ -702,9 +702,9 @@ async def _send_promo_report(target: Message | CallbackQuery, code: str) -> None
         f"— Партнёр: {info['ambassador_name'] or '—'}\n"
         f"— Скидка: {info['discount_percent']}%\n"
         f"📦 Заказов: {st['count']} шт.\n"
-        f"💰 Чистый оборот (в кассе): {rev} ₽\n"
-        f"📉 Сумма скидок клиентам: {st['total_discount']} ₽\n"
-        f"Для выплаты: долю амбассадора от суммы {rev} ₽ рассчитайте вручную."
+        f"💰 Чистый оборот (в кассе): {rev} тг\n"
+        f"📉 Сумма скидок клиентам: {st['total_discount']} тг\n"
+        f"Для выплаты: долю амбассадора от суммы {rev} тг рассчитайте вручную."
     )
     if isinstance(target, CallbackQuery) and target.message:
         await target.message.answer(text, parse_mode=None)

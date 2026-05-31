@@ -116,10 +116,10 @@ def _admin_order_text(
     ]
     if promo_used:
         lines.append(f"🎟 Промокод: {promo_used} (-{discount_percent}%)")
-        lines.append(f"💸 Скидка: {discount_amount} ₽")
-        lines.append(f"💰 К оплате: {final_price} ₽ (без скидки: {total_price} ₽)")
+        lines.append(f"💸 Скидка: {discount_amount} тг")
+        lines.append(f"💰 К оплате: {final_price} тг (без скидки: {total_price} тг)")
     else:
-        lines.append(f"💰 Сумма: {total_price} ₽")
+        lines.append(f"💰 Сумма: {total_price} тг")
     lines.append(f"💬 Комментарий: {cmt}")
     return "\n".join(lines)
 
