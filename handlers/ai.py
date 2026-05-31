@@ -147,7 +147,6 @@ async def open_ai(cq: CallbackQuery, state: FSMContext) -> None:
     if not await ensure_goal_chosen(cq.from_user.id, cq):
         return
     await state.set_state(AIConsultant.chatting)
-    await cq.answer()
     if cq.message.photo:
         await cq.message.edit_caption(
             caption=msg.ai_intro_caption(),

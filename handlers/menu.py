@@ -29,7 +29,6 @@ async def open_main_menu(cq: CallbackQuery, state: FSMContext) -> None:
     if not await ensure_goal_chosen(cq.from_user.id, cq):
         return
     await state.set_state(Menu.main)
-    await cq.answer()
     await apply_photo_via_callback(
         cq,
         caption=msg.main_menu_caption(),
@@ -47,7 +46,6 @@ async def menu_certs(cq: CallbackQuery, state: FSMContext) -> None:
     if not await ensure_goal_chosen(cq.from_user.id, cq):
         return
     await state.set_state(Menu.main)
-    await cq.answer()
     ok = await apply_photo_via_callback(
         cq,
         caption=msg.caption_certificates(),
@@ -79,7 +77,6 @@ async def menu_delivery(cq: CallbackQuery, state: FSMContext) -> None:
     if not await ensure_goal_chosen(cq.from_user.id, cq):
         return
     await state.set_state(Menu.main)
-    await cq.answer()
     try:
         if cq.message.photo:
             await cq.message.edit_caption(

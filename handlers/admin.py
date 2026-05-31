@@ -3,6 +3,7 @@ import logging
 
 from aiogram import F, Router
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -50,6 +51,13 @@ _ACTION_SUFFIX = {
         "\\— в статистике не учитывается, пока не нажмёте *Подтвердить*\\."
     ),
 }
+
+
+async def _answer_callback(cq: CallbackQuery, *args, **kwargs) -> None:
+    try:
+        await cq.answer(*args, **kwargs)
+    except TelegramBadRequest:
+        pass
 
 
 def _stock_panel_text(rows: list[dict]) -> str:
@@ -245,7 +253,7 @@ async def _edit_admin_panel(
         await cq.answer()
         return
     await state.set_state(AdminPanel.main)
-    await cq.answer()
+    await _answer_callback(cq)
     try:
         await cq.message.edit_text(text, reply_markup=reply_markup, parse_mode=parse_mode)
     except Exception as e:
@@ -354,6 +362,7 @@ async def cb_admin_orders_list(cq: CallbackQuery, state: FSMContext) -> None:
     if not cq.from_user or cq.from_user.id != ADMIN_ID:
         await cq.answer(msg.ADMIN_NO_ACCESS_PLAIN, show_alert=True)
         return
+    await _answer_callback(cq)
     filter_key = (cq.data or "").split(":", 2)[2] if cq.data else "new"
     title, statuses = _orders_filter_meta(filter_key)
     rows = await db.list_orders_by_statuses(statuses)
@@ -405,6 +414,7 @@ async def cb_admin_panel_promo_list(cq: CallbackQuery, state: FSMContext) -> Non
     if not cq.from_user or cq.from_user.id != ADMIN_ID:
         await cq.answer(msg.ADMIN_NO_ACCESS_PLAIN, show_alert=True)
         return
+    await _answer_callback(cq)
     rows = await db.list_promos()
     pairs = [(r["code"], r["discount_percent"]) for r in rows]
     await _edit_admin_panel(
@@ -455,6 +465,7 @@ async def cb_admin_panel_stats(cq: CallbackQuery, state: FSMContext) -> None:
     if not cq.from_user or cq.from_user.id != ADMIN_ID:
         await cq.answer(msg.ADMIN_NO_ACCESS_PLAIN, show_alert=True)
         return
+    await _answer_callback(cq)
     total = await db.count_orders()
     by_goal = await db.orders_by_goal()
     byt = by_goal.get("Быт", 0)
@@ -523,6 +534,7 @@ async def cb_admin_panel_stock(cq: CallbackQuery, state: FSMContext) -> None:
     if not cq.from_user or cq.from_user.id != ADMIN_ID:
         await cq.answer(msg.ADMIN_NO_ACCESS_PLAIN, show_alert=True)
         return
+    await _answer_callback(cq)
     rows = await db.list_product_stock()
     await _edit_admin_panel(
         cq,

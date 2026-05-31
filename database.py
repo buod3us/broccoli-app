@@ -19,6 +19,7 @@ STATUS_CANCELLED = "cancelled"
 
 _PG_POOL: asyncpg.Pool | None = None
 _PG_POOL_LOCK = asyncio.Lock()
+_USER_GOAL_CACHE: dict[int, str | None] = {}
 
 
 def using_postgres() -> bool:
@@ -78,6 +79,7 @@ async def close_db() -> None:
     if _PG_POOL is not None:
         await _PG_POOL.close()
         _PG_POOL = None
+    _USER_GOAL_CACHE.clear()
 
 
 async def ping_db() -> bool:
@@ -390,22 +392,51 @@ async def upsert_user(user_id: int, username: str | None) -> None:
     )
 
 
+async def upsert_user_and_get_goal(user_id: int, username: str | None) -> str | None:
+    uname = username or ""
+    if using_postgres():
+        pool = await _get_pg_pool()
+        async with pool.acquire() as conn:
+            goal = await conn.fetchval(
+                """
+                INSERT INTO users (user_id, username, goal)
+                VALUES ($1, $2, NULL)
+                ON CONFLICT(user_id) DO UPDATE SET username = excluded.username
+                RETURNING goal
+                """,
+                user_id,
+                uname,
+            )
+        result = str(goal) if goal else None
+        _USER_GOAL_CACHE[user_id] = result
+        return result
+
+    await upsert_user(user_id, username)
+    return await get_user_goal(user_id)
+
+
 async def set_user_goal(user_id: int, goal: str) -> None:
     await _execute(
         "UPDATE users SET goal = ? WHERE user_id = ?",
         (goal, user_id),
     )
+    _USER_GOAL_CACHE[user_id] = goal
 
 
 async def get_user_goal(user_id: int) -> str | None:
+    if user_id in _USER_GOAL_CACHE:
+        return _USER_GOAL_CACHE[user_id]
     row = await _fetchone(
         "SELECT goal FROM users WHERE user_id = ?",
         (user_id,),
         dict_row=True,
     )
     if not row:
+        _USER_GOAL_CACHE[user_id] = None
         return None
-    return row["goal"]
+    goal = row["goal"] or None
+    _USER_GOAL_CACHE[user_id] = goal
+    return goal
 
 
 async def create_order_webapp(

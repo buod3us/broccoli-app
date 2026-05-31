@@ -26,8 +26,7 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
     user = message.from_user
     if not user:
         return
-    await db.upsert_user(user.id, user.username)
-    goal = await db.get_user_goal(user.id)
+    goal = await db.upsert_user_and_get_goal(user.id, user.username)
 
     photo = input_photo(WELCOME_IMAGE_URL, folder_key="welcome")
 
@@ -60,11 +59,11 @@ async def on_goal_chosen(cq: CallbackQuery, state: FSMContext) -> None:
     if not cq.from_user or not cq.message:
         await cq.answer()
         return
+    await cq.answer()
     key = cq.data or ""
     goal = GOAL_BY_CALLBACK[key]
     await db.set_user_goal(cq.from_user.id, goal)
     await state.set_state(Menu.main)
-    await cq.answer()
 
     try:
         await cq.message.edit_caption(

@@ -101,7 +101,6 @@ async def _show_reviews_page(
         if not await ensure_goal_chosen(cq.from_user.id, cq):
             return
         await state.set_state(Menu.main)
-        await cq.answer()
         chat_message = cq.message
     else:
         if message is None:
@@ -117,7 +116,7 @@ async def _show_reviews_page(
     if not files:
         text = _format_empty_reviews_text()
         if cq is not None:
-            await cq.answer(text, show_alert=True)
+            await chat_message.answer(text, parse_mode=None)
         else:
             await chat_message.answer(text, parse_mode=None)
         return
@@ -180,7 +179,6 @@ async def nav_reviews(cq: CallbackQuery, state: FSMContext) -> None:
 
     parts = cq.data.split(":")
     if len(parts) < 3:
-        await cq.answer()
         return
     action = parts[1]
     try:
@@ -190,19 +188,17 @@ async def nav_reviews(cq: CallbackQuery, state: FSMContext) -> None:
 
     files = get_review_files()
     if not files:
-        await cq.answer(_format_empty_reviews_text(), show_alert=True)
+        await cq.message.answer(_format_empty_reviews_text(), parse_mode=None)
         return
 
     total = len(files)
     if action == "noop":
-        await cq.answer()
         return
     if action == "next":
         new_idx = (idx + 1) % total
     elif action == "prev":
         new_idx = (idx - 1 + total) % total
     else:
-        await cq.answer()
         return
 
     path = files[new_idx]
@@ -214,6 +210,5 @@ async def nav_reviews(cq: CallbackQuery, state: FSMContext) -> None:
     )
     kb = build_reviews_kb(idx=new_idx, total=total)
 
-    await cq.answer()
     await cq.message.edit_media(media=media, reply_markup=kb)
 
