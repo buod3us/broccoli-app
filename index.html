@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="style.css?v=12" />
+  <link rel="stylesheet" href="style.css?v=13" />
 </head>
 <body>
   <div class="app">
@@ -150,8 +150,28 @@
         <span>Профиль</span>
       </button>
     </nav>
+
+    <div class="product-modal" id="product-modal" hidden>
+      <div class="product-modal__backdrop" data-product-modal-close></div>
+      <section class="product-modal__sheet" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">
+        <button type="button" class="product-modal__close" data-product-modal-close aria-label="Закрыть">×</button>
+        <div id="product-modal-media"></div>
+        <div class="product-modal__body">
+          <div class="product-modal__meta">
+            <span id="product-modal-category"></span>
+            <span id="product-modal-stock" class="product-modal__stock"></span>
+          </div>
+          <h3 id="product-modal-title" class="product-modal__title"></h3>
+          <p id="product-modal-description" class="product-modal__description"></p>
+          <div class="product-modal__footer">
+            <div id="product-modal-price" class="product-modal__price"></div>
+            <button type="button" class="btn btn--primary" id="product-modal-add">Добавить в корзину</button>
+          </div>
+        </div>
+      </section>
+    </div>
   </div>
   <script src="config.js?v=1"></script>
-  <script src="script.js?v=23"></script>
+  <script src="script.js?v=24"></script>
 </body>
 </html>

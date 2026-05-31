@@ -172,6 +172,8 @@ async function loadRemoteCatalog() {
       emoji: String(item && item.emoji ? item.emoji : "🥦"),
       price: Math.max(0, Math.round(Number(item && item.price ? item.price : 0) || 0)),
       image: String(item && item.image ? item.image : "").trim(),
+      unit: String(item && item.unit ? item.unit : "").trim(),
+      description: String(item && item.description ? item.description : "").trim(),
     }))
     .filter((item) => item.id && item.title);
   if (!items.length) {
@@ -516,6 +518,7 @@ function renderProducts() {
   filteredProducts.forEach((p) => {
     const card = document.createElement("article");
     card.className = "product-card";
+    card.dataset.id = p.id;
     card.innerHTML = `
       ${productImageBlock(p)}
       <div class="product-card__body">
@@ -529,8 +532,14 @@ function renderProducts() {
     `;
     grid.appendChild(card);
   });
+  grid.querySelectorAll(".product-card[data-id]").forEach((card) => {
+    card.addEventListener("click", () => openProductModal(card.dataset.id));
+  });
   grid.querySelectorAll(".btn-add[data-id]").forEach((btn) => {
-    btn.addEventListener("click", () => addToCart(btn.dataset.id));
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      addToCart(btn.dataset.id);
+    });
   });
 }
 
@@ -538,6 +547,88 @@ function escapeHtml(s) {
   const d = document.createElement("div");
   d.textContent = s;
   return d.innerHTML;
+}
+
+function categoryTitle(id) {
+  const match = CATEGORIES.find((cat) => cat.id === id);
+  return match && match.id !== "all" ? match.title : "";
+}
+
+function productFallbackDescription(p) {
+  const category = categoryTitle(p.categoryId);
+  if (category) return `${category}. Подробности по весу и наличию уточнит менеджер при подтверждении заказа.`;
+  return "Подробности по весу и наличию уточнит менеджер при подтверждении заказа.";
+}
+
+function productPriceText(p) {
+  const unit = p.unit ? ` ${p.unit}` : "";
+  return `${p.price} тг${unit}`;
+}
+
+function modalImageHtml(p) {
+  const src = p.image ? escapeHtml(p.image) : "";
+  const em = escapeHtml(p.emoji || "🥦");
+  if (!src) {
+    return `<div class="product-modal__image product-modal__image--emoji"><span>${em}</span></div>`;
+  }
+  return `
+    <div class="product-modal__image">
+      <img src="${src}" alt="" loading="eager"
+        onerror="this.style.display='none'; var f=this.nextElementSibling; if(f) f.style.display='flex';" />
+      <span class="product-modal__emoji" style="display:none;">${em}</span>
+    </div>`;
+}
+
+function openProductModal(id) {
+  const product = PRODUCTS.find((p) => p.id === id);
+  const modal = document.getElementById("product-modal");
+  if (!product || !modal) return;
+  const media = document.getElementById("product-modal-media");
+  const title = document.getElementById("product-modal-title");
+  const category = document.getElementById("product-modal-category");
+  const description = document.getElementById("product-modal-description");
+  const price = document.getElementById("product-modal-price");
+  const stock = document.getElementById("product-modal-stock");
+  const addBtn = document.getElementById("product-modal-add");
+  if (!media || !title || !category || !description || !price || !stock || !addBtn) return;
+
+  media.innerHTML = modalImageHtml(product);
+  title.textContent = product.title;
+  category.textContent = categoryTitle(product.categoryId) || "Товар";
+  description.textContent = product.description || productFallbackDescription(product);
+  price.textContent = productPriceText(product);
+  const inStock = isProductInStock(product.id);
+  stock.textContent = inStock ? "В наличии" : "Нет в наличии";
+  stock.className = `product-modal__stock ${inStock ? "product-modal__stock--ok" : "product-modal__stock--out"}`;
+  addBtn.disabled = !inStock;
+  addBtn.dataset.id = product.id;
+  addBtn.textContent = inStock ? "Добавить в корзину" : "Нет в наличии";
+
+  modal.hidden = false;
+  document.body.classList.add("modal-open");
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+}
+
+function closeProductModal() {
+  const modal = document.getElementById("product-modal");
+  if (!modal || modal.hidden) return;
+  modal.hidden = true;
+  document.body.classList.remove("modal-open");
+}
+
+function initProductModal() {
+  document.querySelectorAll("[data-product-modal-close]").forEach((el) => {
+    el.addEventListener("click", () => closeProductModal());
+  });
+  document.getElementById("product-modal-add")?.addEventListener("click", (e) => {
+    const id = e.currentTarget.dataset.id;
+    if (!id) return;
+    addToCart(id);
+    closeProductModal();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeProductModal();
+  });
 }
 
 function updateCartTotals() {
@@ -923,6 +1014,7 @@ async function boot() {
   reconcileAppliedPromoDiscount();
   initTheme();
   initLogo();
+  initProductModal();
   renderCategories();
   renderProducts();
   initSlider();
