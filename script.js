@@ -522,7 +522,7 @@ function renderProducts() {
         <h3 class="product-card__title">${escapeHtml(p.title)}</h3>
         ${stockStatusHtml(p)}
         <div class="product-card__row">
-          <div class="product-card__price">${p.price} ₽</div>
+          <div class="product-card__price">${p.price} тг</div>
           ${productActionButtonHtml(p)}
         </div>
       </div>
@@ -575,16 +575,16 @@ function updateCartTotals() {
 
   if (hasRealDiscount) {
     subEl.classList.add("cart-summary__price--strike");
-    subEl.textContent = `${t.subtotal} ₽`;
+    subEl.textContent = `${t.subtotal} тг`;
     promoLine.hidden = false;
     promoLine.textContent = `Промокод ${appliedPromo.code} применён: −${t.discountPercent}%`;
-    finalEl.textContent = `${t.final} ₽`;
+    finalEl.textContent = `${t.final} тг`;
     finalEl.className = "cart-summary__price cart-summary__price--final";
   } else {
     subEl.classList.remove("cart-summary__price--strike");
-    subEl.textContent = `${t.subtotal} ₽`;
+    subEl.textContent = `${t.subtotal} тг`;
     promoLine.hidden = true;
-    finalEl.textContent = `${t.subtotal} ₽`;
+    finalEl.textContent = `${t.subtotal} тг`;
     finalEl.className = "cart-summary__price";
   }
 }
@@ -713,7 +713,7 @@ function renderCartList() {
           <button type="button" class="cart-qty-btn" data-qty-act="plus" data-id="${escapeHtml(p.id)}" aria-label="Больше">+</button>
         </div>
       </div>
-      <div class="cart-row__line-total">${line} ₽</div>
+      <div class="cart-row__line-total">${line} тг</div>
     `;
     list.appendChild(row);
   });
