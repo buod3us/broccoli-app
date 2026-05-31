@@ -21,6 +21,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🍲",
         "price": 350,
         "image": "images/products/buckwheat_chicken.jpg",
+        "unit": "за порцию",
+        "description": "Сублимированное готовое блюдо: гречка с курицей. Удобно для дома, дороги, спорта и поездок.",
     },
     {
         "id": "rice_chicken",
@@ -29,6 +31,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🍛",
         "price": 350,
         "image": "images/products/rice_chicken.jpg",
+        "unit": "за порцию",
+        "description": "Готовый рацион с рисом и курицей. Лёгкий формат для быстрого горячего обеда.",
     },
     {
         "id": "beef_buckwheat",
@@ -37,6 +41,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥩",
         "price": 350,
         "image": "images/products/beef_buckwheat.jpg",
+        "unit": "за порцию",
+        "description": "Готовый рацион с гречкой и говядиной. Сытный вариант для обеда в дороге или дома.",
     },
     {
         "id": "chicken_soup",
@@ -45,6 +51,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥣",
         "price": 250,
         "image": "images/products/chicken_soup.jpg",
+        "unit": "за порцию",
+        "description": "Лёгкий куриный суп в формате готового рациона. Подходит для быстрого перекуса.",
     },
     {
         "id": "beef_soup",
@@ -53,6 +61,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🍲",
         "price": 280,
         "image": "images/products/beef_soup.jpg",
+        "unit": "за порцию",
+        "description": "Говяжий бульон для горячего приёма пищи. Удобно взять с собой в поездку.",
     },
     {
         "id": "sausage_domashnyaya",
@@ -61,6 +71,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥓",
         "price": 3080,
         "image": "images/products/sausage_domashnyaya.jpg",
+        "unit": "за палку",
+        "description": "Полукопчёная колбаса из линейки мясных деликатесов. Цена указана примерно за 1 палку.",
     },
     {
         "id": "sausage_sibirskaya",
@@ -69,6 +81,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥓",
         "price": 3080,
         "image": "images/products/sausage_sibirskaya.jpg",
+        "unit": "за палку",
+        "description": "Полукопчёная колбаса с насыщенным мясным вкусом. Цена указана примерно за 1 палку.",
     },
     {
         "id": "sausage_kamskaya",
@@ -77,6 +91,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥓",
         "price": 3080,
         "image": "images/products/sausage_kamskaya.jpg",
+        "unit": "за палку",
+        "description": "Полукопчёная колбаса для нарезки, закусок и домашних блюд. Цена указана примерно за 1 палку.",
     },
     {
         "id": "sausage_pikantnaya",
@@ -85,6 +101,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🌶",
         "price": 2380,
         "image": "images/products/sausage_pikantnaya.jpg",
+        "unit": "за палку",
+        "description": "Полукопчёная колбаса с пикантным вкусом. Цена указана примерно за 1 палку.",
     },
     {
         "id": "sausage_venskaya",
@@ -93,6 +111,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥓",
         "price": 3080,
         "image": "images/products/sausage_venskaya.jpg",
+        "unit": "за палку",
+        "description": "Полукопчёная Венская колбаса для нарезки и перекуса. Цена указана примерно за 1 палку.",
     },
     {
         "id": "sausage_orekhovaya",
@@ -101,6 +121,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥓",
         "price": 3080,
         "image": "images/products/sausage_orekhovaya.jpg",
+        "unit": "за палку",
+        "description": "Полукопчёная Ореховая колбаса с мягким мясным вкусом. Цена указана примерно за 1 палку.",
     },
     {
         "id": "sausage_originalnaya",
@@ -109,6 +131,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥓",
         "price": 3080,
         "image": "images/products/sausage_originalnaya.jpg",
+        "unit": "за палку",
+        "description": "Полукопчёная Оригинальная колбаса из мясной линейки. Цена указана примерно за 1 палку.",
     },
     {
         "id": "sausage_originalnaya_syrokopchenaya",
@@ -117,6 +141,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥓",
         "price": 5180,
         "image": "images/products/sausage_originalnaya_syrokopchenaya.jpg",
+        "unit": "за палку",
+        "description": "Сырокопчёная полусухая Оригинальная колбаса. Плотный вкус, цена указана примерно за 1 палку.",
     },
     {
         "id": "horse_konina_rublenaya",
@@ -125,6 +151,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥩",
         "price": 4520,
         "image": "images/products/horse_konina_rublenaya.jpg",
+        "unit": "за палку",
+        "description": "Копчёно-варёная рубленая конина. Подходит для нарезки и мясной тарелки.",
     },
     {
         "id": "horse_konina_pressovannaya",
@@ -133,6 +161,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥩",
         "price": 5180,
         "image": "images/products/horse_konina_pressovannaya.jpg",
+        "unit": "за штуку",
+        "description": "Копчёно-варёная прессованная конина. Плотный мясной деликатес для нарезки.",
     },
     {
         "id": "horse_steak",
@@ -141,6 +171,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥩",
         "price": 8400,
         "image": "images/products/horse_steak.jpg",
+        "unit": "за штуку",
+        "description": "Стейк из конины. Мясная позиция для сытного горячего блюда.",
     },
     {
         "id": "fat_solenyy_bryushnoy",
@@ -149,6 +181,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🧂",
         "price": 1225,
         "image": "images/products/fat_solenyy_bryushnoy.jpg",
+        "unit": "за штуку",
+        "description": "Солёный брюшной жир. Подходит для нарезки, закусок и добавления к блюдам.",
     },
     {
         "id": "fat_kopchenyy_bryushnoy",
@@ -157,6 +191,8 @@ MINI_APP_PRODUCT_CATALOG = (
         "emoji": "🥓",
         "price": 2030,
         "image": "images/products/fat_kopchenyy_bryushnoy.jpg",
+        "unit": "за штуку",
+        "description": "Копчёный брюшной жир с выраженным ароматом. Подходит для закусок и нарезки.",
     },
 )
 
