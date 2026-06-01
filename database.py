@@ -392,27 +392,41 @@ async def upsert_user(user_id: int, username: str | None) -> None:
     )
 
 
-async def upsert_user_and_get_goal(user_id: int, username: str | None) -> str | None:
+async def upsert_user_and_get_goal_info(user_id: int, username: str | None) -> tuple[str | None, bool]:
     uname = username or ""
     if using_postgres():
         pool = await _get_pg_pool()
         async with pool.acquire() as conn:
-            goal = await conn.fetchval(
+            row = await conn.fetchrow(
                 """
                 INSERT INTO users (user_id, username, goal)
                 VALUES ($1, $2, NULL)
                 ON CONFLICT(user_id) DO UPDATE SET username = excluded.username
-                RETURNING goal
+                RETURNING goal, (xmax = 0) AS inserted
                 """,
                 user_id,
                 uname,
             )
+        goal = row["goal"] if row else None
         result = str(goal) if goal else None
         _USER_GOAL_CACHE[user_id] = result
-        return result
+        return result, bool(row and row["inserted"])
 
+    row = await _fetchone(
+        "SELECT goal FROM users WHERE user_id = ?",
+        (user_id,),
+        dict_row=True,
+    )
     await upsert_user(user_id, username)
-    return await get_user_goal(user_id)
+    goal = row["goal"] if row else None
+    result = str(goal) if goal else None
+    _USER_GOAL_CACHE[user_id] = result
+    return result, row is None
+
+
+async def upsert_user_and_get_goal(user_id: int, username: str | None) -> str | None:
+    goal, _is_new = await upsert_user_and_get_goal_info(user_id, username)
+    return goal
 
 
 async def set_user_goal(user_id: int, goal: str) -> None:
