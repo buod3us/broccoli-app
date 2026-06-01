@@ -129,10 +129,12 @@ def _broadcast_prompt_text() -> str:
 
 async def _build_admin_stats_text() -> str:
     total = await db.count_orders()
+    total_users = await db.count_users()
     by_goal = await db.orders_by_goal()
     visits = await db.bot_visit_stats()
     return msg.admin_stats_text(
         total=total,
+        total_users=total_users,
         byt=by_goal.get("Быт", 0),
         sport=by_goal.get("Спорт", 0),
         hajj=by_goal.get("Хадж", 0),

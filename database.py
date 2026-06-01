@@ -850,6 +850,11 @@ async def count_orders() -> int:
     return int(row[0]) if row else 0
 
 
+async def count_users() -> int:
+    row = await _fetchone("SELECT COUNT(*) FROM users")
+    return int(row[0]) if row else 0
+
+
 async def orders_by_goal() -> dict[str, int]:
     rows = await _fetchall(
         """

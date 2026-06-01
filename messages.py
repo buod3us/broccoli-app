@@ -150,6 +150,7 @@ ADMIN_NO_ACCESS_PLAIN = "Нет доступа."
 def admin_stats_text(
     *,
     total: int,
+    total_users: int,
     byt: int,
     sport: int,
     hajj: int,
@@ -169,6 +170,7 @@ def admin_stats_text(
         f"🕋 Хадж: *{hajj}*\n\n"
         "*Посещения бота*\n"
         "_Визиты считаются по команде /start\\._\n\n"
+        f"Всего пользователей за всё время: *{total_users}*\n"
         f"За 24 часа: *{visits_day}* визитов, *{visitors_day}* пользователей\n"
         f"За 7 дней: *{visits_week}* визитов, *{visitors_week}* пользователей\n"
         f"За 30 дней: *{visits_month}* визитов, *{visitors_month}* пользователей\n"
