@@ -127,6 +127,24 @@ def _broadcast_prompt_text() -> str:
     )
 
 
+async def _build_admin_stats_text() -> str:
+    total = await db.count_orders()
+    by_goal = await db.orders_by_goal()
+    visits = await db.bot_visit_stats()
+    return msg.admin_stats_text(
+        total=total,
+        byt=by_goal.get("Быт", 0),
+        sport=by_goal.get("Спорт", 0),
+        hajj=by_goal.get("Хадж", 0),
+        visits_day=visits["day"]["visits"],
+        visitors_day=visits["day"]["visitors"],
+        visits_week=visits["week"]["visits"],
+        visitors_week=visits["week"]["visitors"],
+        visits_month=visits["month"]["visits"],
+        visitors_month=visits["month"]["visitors"],
+    )
+
+
 def _promo_list_text(rows: list[dict]) -> str:
     if not rows:
         return "Промокодов пока нет. Нажмите «Добавить» и отправьте данные нового кода."
@@ -466,15 +484,11 @@ async def cb_admin_panel_stats(cq: CallbackQuery, state: FSMContext) -> None:
         await cq.answer(msg.ADMIN_NO_ACCESS_PLAIN, show_alert=True)
         return
     await _answer_callback(cq)
-    total = await db.count_orders()
-    by_goal = await db.orders_by_goal()
-    byt = by_goal.get("Быт", 0)
-    sport = by_goal.get("Спорт", 0)
-    hajj = by_goal.get("Хадж", 0)
+    text = await _build_admin_stats_text()
     await _edit_admin_panel(
         cq,
         state,
-        msg.admin_stats_text(total=total, byt=byt, sport=sport, hajj=hajj),
+        text,
         reply_markup=kb_admin_panel_stats(),
         parse_mode=ParseMode.MARKDOWN_V2,
     )
@@ -518,13 +532,9 @@ async def cmd_stats(message: Message) -> None:
     if message.from_user.id != ADMIN_ID:
         await message.answer(msg.admin_no_access())
         return
-    total = await db.count_orders()
-    by_goal = await db.orders_by_goal()
-    byt = by_goal.get("Быт", 0)
-    sport = by_goal.get("Спорт", 0)
-    hajj = by_goal.get("Хадж", 0)
+    text = await _build_admin_stats_text()
     await message.answer(
-        msg.admin_stats_text(total=total, byt=byt, sport=sport, hajj=hajj),
+        text,
         reply_markup=kb_admin_panel_stats(),
     )
 

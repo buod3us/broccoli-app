@@ -147,14 +147,31 @@ def admin_no_access() -> str:
 ADMIN_NO_ACCESS_PLAIN = "Нет доступа."
 
 
-def admin_stats_text(*, total: int, byt: int, sport: int, hajj: int) -> str:
+def admin_stats_text(
+    *,
+    total: int,
+    byt: int,
+    sport: int,
+    hajj: int,
+    visits_day: int,
+    visitors_day: int,
+    visits_week: int,
+    visitors_week: int,
+    visits_month: int,
+    visitors_month: int,
+) -> str:
     return (
         "*Статистика заказов*\n"
         "_Считаются только подтверждённые заказы\\._\n\n"
         f"Всего: *{total}*\n"
         f"🏠 Быт: *{byt}*\n"
         f"🏃‍♂️ Спорт: *{sport}*\n"
-        f"🕋 Хадж: *{hajj}*\n"
+        f"🕋 Хадж: *{hajj}*\n\n"
+        "*Посещения бота*\n"
+        "_Визиты считаются по команде /start\\._\n\n"
+        f"За 24 часа: *{visits_day}* визитов, *{visitors_day}* пользователей\n"
+        f"За 7 дней: *{visits_week}* визитов, *{visitors_week}* пользователей\n"
+        f"За 30 дней: *{visits_month}* визитов, *{visitors_month}* пользователей\n"
     )
 
 
